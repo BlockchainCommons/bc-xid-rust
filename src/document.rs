@@ -34,6 +34,12 @@ impl XIDDocument {
         }
     }
 
+    pub fn new_with_provenance(genesis_key: PublicKeyBase, provenance: ProvenanceMark) -> Self {
+        let mut doc = Self::new(genesis_key);
+        doc.provenance = Some(provenance);
+        doc
+    }
+
     pub fn from_xid(xid: XID) -> Self {
         Self {
             xid,
@@ -46,6 +52,38 @@ impl XIDDocument {
 
     pub fn xid(&self) -> &XID {
         &self.xid
+    }
+
+    pub fn resolution_methods(&self) -> &HashSet<URI> {
+        &self.resolution_methods
+    }
+
+    pub fn resolution_methods_mut(&mut self) -> &mut HashSet<URI> {
+        &mut self.resolution_methods
+    }
+
+    pub fn keys(&self) -> &HashSet<Key> {
+        &self.keys
+    }
+
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
+        &mut self.keys
+    }
+
+    pub fn delegates(&self) -> &HashSet<Delegate> {
+        &self.delegates
+    }
+
+    pub fn delegates_mut(&mut self) -> &mut HashSet<Delegate> {
+        &mut self.delegates
+    }
+
+    pub fn provenance(&self) -> Option<&ProvenanceMark> {
+        self.provenance.as_ref()
+    }
+
+    pub fn set_provenance(&mut self, provenance: Option<ProvenanceMark>) {
+        self.provenance = provenance;
     }
 
     pub fn is_genesis_key(&self, key: &PublicKeyBase) -> bool {
@@ -228,8 +266,10 @@ impl CBORTaggedDecodable for XIDDocument {
 mod tests {
     use bc_envelope::prelude::*;
     use bc_rand::make_fake_random_number_generator;
+    use dcbor::Date;
     use indoc::indoc;
     use bc_components::{tags, with_tags, PrivateKeyBase, XID};
+    use provenance_mark::{ProvenanceMark, ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed};
 
     use crate::XIDDocument;
 
@@ -387,5 +427,20 @@ mod tests {
 
         let self_certified_xid_document = XIDDocument::try_from_signed_envelope(&signed_envelope).unwrap();
         assert_eq!(xid_document, self_certified_xid_document);
+    }
+
+    #[test]
+    fn test_with_provenance() {
+        let mut rng = make_fake_random_number_generator();
+        let private_genesis_key = PrivateKeyBase::new_using(&mut rng);
+        let genesis_key = private_genesis_key.schnorr_public_key_base();
+
+        let genesis_seed = ProvenanceSeed::new_using(&mut rng);
+
+        let mut generator = ProvenanceMarkGenerator::new_with_seed(ProvenanceMarkResolution::Quartile, genesis_seed);
+        let provenance = generator.next(Date::now(), None::<String>);
+        let xid_document = XIDDocument::new_with_provenance(genesis_key, provenance);
+        let signed_envelope = xid_document.to_signed_envelope(&private_genesis_key);
+        println!("{}", signed_envelope.format());
     }
 }

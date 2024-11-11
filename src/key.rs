@@ -52,12 +52,12 @@ impl Key {
         &self.endpoints
     }
 
-    pub fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
-
     pub fn endpoints_mut(&mut self) -> &mut HashSet<URI> {
         &mut self.endpoints
+    }
+
+    pub fn permissions(&self) -> &Permissions {
+        &self.permissions
     }
 
     pub fn permissions_mut(&mut self) -> &mut Permissions {

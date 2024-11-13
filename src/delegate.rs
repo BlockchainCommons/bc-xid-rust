@@ -62,19 +62,14 @@ impl Delegate {
     }
 }
 
-/*
-XID(2d9296d0) [
-    'delegate': {
-        XID(5802b4ff)
-    } [
-        'allow': 'All'
-    ]
-]
- */
 impl EnvelopeEncodable for Delegate {
     fn into_envelope(self) -> Envelope {
         let doc = self.controller.read();
-        let envelope = doc.clone().into_envelope().wrap_envelope();
+        let envelope = if doc.is_empty() {
+            doc.clone().into_envelope()
+        } else {
+            doc.clone().into_envelope().wrap_envelope()
+        };
         self.permissions.add_to_envelope(envelope)
     }
 }
@@ -84,7 +79,11 @@ impl TryFrom<&Envelope> for Delegate {
 
     fn try_from(envelope: &Envelope) -> Result<Self> {
         let permissions = Permissions::try_from_envelope(envelope)?;
-        let inner = envelope.unwrap_envelope()?;
+        let inner = if envelope.subject().is_wrapped() {
+            envelope.unwrap_envelope()?
+        } else {
+            envelope.clone()
+        };
         let controller = Shared::new(XIDDocument::try_from(inner)?);
         Ok(Self {
             controller,
@@ -115,7 +114,7 @@ mod tests {
 
         // Create Alice's XIDDocument
         let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let mut alice_xid_document = XIDDocument::from(&alice_private_key_base);
+        let alice_xid_document = XIDDocument::from(&alice_private_key_base);
 
         let envelope = alice_xid_document.clone().into_envelope();
         let expected = indoc! {r#"
@@ -141,18 +140,40 @@ mod tests {
         "#}.trim();
         assert_eq!(envelope.format(), expected);
 
-        // // Remove the genesis key from Alice's XIDDocument
-        // let alice_genesis_key = alice_xid_document.genesis_key().unwrap().clone();
-        // alice_xid_document.remove_key(&alice_genesis_key);
-        // assert!(alice_xid_document.genesis_key().is_none());
-        // assert!(alice_xid_document.keys().is_empty());
-        // assert!(alice_xid_document.is_empty());
+        let mut bob_unresolved_delegate = Delegate::new(XIDDocument::from_xid(bob_xid_document.xid()));
+        bob_unresolved_delegate.add_deny(Privilege::All);
+        bob_unresolved_delegate.add_allow(Privilege::Encrypt);
+        bob_unresolved_delegate.add_allow(Privilege::Sign);
 
-        // let envelope = alice_xid_document.clone().into_envelope();
-        // let expected = indoc! {r#"
-        // XID(71274df1)
-        // "#}.trim();
-        // assert_eq!(envelope.format(), expected);
+        let envelope = bob_unresolved_delegate.clone().into_envelope();
+        let bob_unresolved_delegate_2 = Delegate::try_from(&envelope).unwrap();
+        assert_eq!(bob_unresolved_delegate, bob_unresolved_delegate_2);
+
+        let expected = indoc! {r#"
+        XID(7c30cafe) [
+            'allow': 'Encrypt'
+            'allow': 'Sign'
+            'deny': 'All'
+        ]
+        "#}.trim();
+        assert_eq!(envelope.format(), expected);
+
+        let mut alice_xid_document_with_unresolved_delegate = alice_xid_document.clone();
+        alice_xid_document_with_unresolved_delegate.add_delegate(bob_unresolved_delegate);
+        let envelope = alice_xid_document_with_unresolved_delegate.clone().into_envelope();
+        let expected = indoc! {r#"
+        XID(71274df1) [
+            'delegate': XID(7c30cafe) [
+                'allow': 'Encrypt'
+                'allow': 'Sign'
+                'deny': 'All'
+            ]
+            'key': PublicKeyBase [
+                'allow': 'All'
+            ]
+        ]
+        "#}.trim();
+        assert_eq!(envelope.format(), expected);
 
         // Make Bob a Delegate with specific permissions
         let mut bob_delegate = Delegate::new(bob_xid_document);
@@ -180,9 +201,9 @@ mod tests {
         assert_eq!(envelope.format(), expected);
 
         // Add Bob as a Delegate to Alice's XIDDocument
-        alice_xid_document.add_delegate(bob_delegate);
-        let envelope = alice_xid_document.clone().into_envelope();
-        println!("{}", envelope.format());
+        let mut alice_xid_document_with_delegate = alice_xid_document.clone();
+        alice_xid_document_with_delegate.add_delegate(bob_delegate);
+        let envelope = alice_xid_document_with_delegate.clone().into_envelope();
         let expected = indoc! {r#"
         XID(71274df1) [
             'delegate': {
@@ -204,3 +225,16 @@ mod tests {
         assert_eq!(envelope.format(), expected);
     }
 }
+
+        // // Remove the genesis key from Alice's XIDDocument
+        // let alice_genesis_key = alice_xid_document.genesis_key().unwrap().clone();
+        // alice_xid_document.remove_key(&alice_genesis_key);
+        // assert!(alice_xid_document.genesis_key().is_none());
+        // assert!(alice_xid_document.keys().is_empty());
+        // assert!(alice_xid_document.is_empty());
+
+        // let envelope = alice_xid_document.clone().into_envelope();
+        // let expected = indoc! {r#"
+        // XID(71274df1)
+        // "#}.trim();
+        // assert_eq!(envelope.format(), expected);

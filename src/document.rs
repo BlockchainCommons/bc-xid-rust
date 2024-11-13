@@ -40,9 +40,9 @@ impl XIDDocument {
         doc
     }
 
-    pub fn from_xid(xid: XID) -> Self {
+    pub fn from_xid(xid: impl Into<XID>) -> Self {
         Self {
-            xid,
+            xid: xid.into(),
             resolution_methods: HashSet::new(),
             keys: HashSet::new(),
             delegates: HashSet::new(),

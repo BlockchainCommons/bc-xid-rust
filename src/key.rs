@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use bc_components::{ AgreementPublicKey, PublicKeyBase, Signer, SigningPublicKey, Verifier, URI };
+use bc_components::{ AgreementPublicKey, PublicKeyBase, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
 use known_values::ENDPOINT;
 

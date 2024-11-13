@@ -329,7 +329,7 @@ mod tests {
 
         // Convert the XID document to a UR
         let xid_document_ur = xid_document.ur_string();
-        assert_eq!(xid_document_ur, "ur:xid/tpsplftpsotanshdhdcxjsdigtwneocmnybadpdlzobysbstmekteypspeotcfldynlpsfolsbintyjkrhfnoyaylftpsotansgylftanshfhdcxhslkfzemaylrwttynsdlghrydpmdfzvdglndloimaahykorefddtsguogmvlahqztansgrhdcxetlewzvlwyfdtobeytidosbamkswaomwwfyabakssakggegychesmerkcatekpcxoycsckcscxsnrpcyrk");
+        assert_eq!(xid_document_ur, "ur:xid/tpsplftpsotanshdhdcxjsdigtwneocmnybadpdlzobysbstmekteypspeotcfldynlpsfolsbintyjkrhfnoyaylftpsotansgylftanshfhdcxhslkfzemaylrwttynsdlghrydpmdfzvdglndloimaahykorefddtsguogmvlahqztansgrhdcxetlewzvlwyfdtobeytidosbamkswaomwwfyabakssakggegychesmerkcatekpcxoycsfncsfggmplgshd");
         let xid_document2 = XIDDocument::from_ur_string(&xid_document_ur).unwrap();
         assert_eq!(xid_document, xid_document2);
 

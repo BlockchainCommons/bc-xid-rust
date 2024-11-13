@@ -1,5 +1,5 @@
-mod function;
-pub use function::*;
+mod privilege;
+pub use privilege::*;
 
 mod document;
 pub use document::*;

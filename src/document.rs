@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result };
-use bc_components::{ tags, PrivateKeyBase, PublicKeyBase, Signer, URI, XID };
+use bc_components::{ tags, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
 use known_values::{DELEGATE, DEREFERENCE_VIA, KEY, PROVENANCE};
@@ -70,6 +70,37 @@ impl XIDDocument {
         &mut self.keys
     }
 
+    pub fn add_key(&mut self, key: Key) {
+        self.keys.insert(key);
+    }
+
+    pub fn find_key_by_public_key_base(&self, key: &PublicKeyBase) -> Option<&Key> {
+        self.keys.iter().find(|k| k.public_key_base() == key)
+    }
+
+    pub fn remove_key(&mut self, key: &Key) -> Option<Key> {
+        let public_key_base = key.public_key_base();
+        if let Some(key) = self.find_key_by_public_key_base(public_key_base).cloned() {
+            self.keys.take(&key)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_genesis_key(&self, signing_public_key: &SigningPublicKey) -> bool {
+        self.xid.validate(signing_public_key)
+    }
+
+    pub fn genesis_key(&self) -> Option<&Key> {
+        self.keys.iter().find(|k| {
+            self.is_genesis_key(k.public_key_base().signing_public_key())
+        })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.resolution_methods.is_empty() && self.keys.is_empty() && self.delegates.is_empty() && self.provenance.is_none()
+    }
+
     pub fn delegates(&self) -> &HashSet<Delegate> {
         &self.delegates
     }
@@ -78,30 +109,28 @@ impl XIDDocument {
         &mut self.delegates
     }
 
+    pub fn add_delegate(&mut self, delegate: Delegate) {
+        self.delegates.insert(delegate);
+    }
+
+    pub fn find_delegate(&self, xid: &XID) -> Option<&Delegate> {
+        self.delegates.iter().find(|d| d.controller().read().xid() == xid)
+    }
+
+    pub fn remove_delegate(&mut self, xid: &XID) -> Option<Delegate> {
+        if let Some(delegate) = self.find_delegate(xid).cloned() {
+            self.delegates.take(&delegate)
+        } else {
+            None
+        }
+    }
+
     pub fn provenance(&self) -> Option<&ProvenanceMark> {
         self.provenance.as_ref()
     }
 
     pub fn set_provenance(&mut self, provenance: Option<ProvenanceMark>) {
         self.provenance = provenance;
-    }
-
-    pub fn is_genesis_key(&self, key: &PublicKeyBase) -> bool {
-        self.xid.validate(key.signing_public_key())
-    }
-
-    pub fn genesis_key(&self) -> Option<&PublicKeyBase> {
-        self.keys.iter().find_map(|k| {
-            if self.is_genesis_key(k.key()) {
-                Some(k.key())
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.resolution_methods.is_empty() && self.keys.is_empty() && self.delegates.is_empty() && self.provenance.is_none()
     }
 
     fn to_unsigned_envelope(&self) -> Envelope {

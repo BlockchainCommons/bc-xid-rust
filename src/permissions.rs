@@ -4,12 +4,12 @@ use anyhow::Result;
 use bc_envelope::prelude::*;
 use known_values::{ALLOW, DENY};
 
-use super::Function;
+use super::Privilege;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Permissions {
-    allow: HashSet<Function>,
-    deny: HashSet<Function>,
+    allow: HashSet<Privilege>,
+    deny: HashSet<Privilege>,
 }
 
 impl Permissions {
@@ -22,39 +22,55 @@ impl Permissions {
 
     pub fn new_allow_all() -> Self {
         let mut allow = HashSet::new();
-        allow.insert(Function::All);
+        allow.insert(Privilege::All);
         Self {
             allow,
             deny: HashSet::new(),
         }
     }
 
-    pub fn allow(&self) -> &HashSet<Function> {
+    pub fn allow(&self) -> &HashSet<Privilege> {
         &self.allow
     }
 
-    pub fn deny(&self) -> &HashSet<Function> {
+    pub fn deny(&self) -> &HashSet<Privilege> {
         &self.deny
     }
 
-    pub fn allow_mut(&mut self) -> &mut HashSet<Function> {
+    pub fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
         &mut self.allow
     }
 
-    pub fn deny_mut(&mut self) -> &mut HashSet<Function> {
+    pub fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
         &mut self.deny
+    }
+
+    pub fn add_allow(&mut self, privilege: Privilege) {
+        self.allow.insert(privilege);
+    }
+
+    pub fn add_deny(&mut self, privilege: Privilege) {
+        self.deny.insert(privilege);
+    }
+
+    pub fn remove_allow(&mut self, privilege: &Privilege) {
+        self.allow.remove(privilege);
+    }
+
+    pub fn remove_deny(&mut self, privilege: &Privilege) {
+        self.deny.remove(privilege);
     }
 
     pub fn add_to_envelope(&self, envelope: Envelope) -> Envelope {
         let mut envelope = envelope;
-        envelope = self.allow.iter().fold(envelope, |envelope, function| envelope.add_assertion(ALLOW, function));
-        envelope = self.deny.iter().fold(envelope, |envelope, function| envelope.add_assertion(DENY, function));
+        envelope = self.allow.iter().fold(envelope, |envelope, privilege| envelope.add_assertion(ALLOW, privilege));
+        envelope = self.deny.iter().fold(envelope, |envelope, privilege| envelope.add_assertion(DENY, privilege));
         envelope
     }
 
     pub fn try_from_envelope(envelope: &Envelope) -> Result<Self> {
-        let allow = envelope.objects_for_predicate(ALLOW).iter().cloned().map(Function::try_from).collect::<Result<HashSet<_>>>()?;
-        let deny = envelope.objects_for_predicate(DENY).iter().cloned().map(Function::try_from).collect::<Result<HashSet<_>>>()?;
+        let allow = envelope.objects_for_predicate(ALLOW).iter().cloned().map(Privilege::try_from).collect::<Result<HashSet<_>>>()?;
+        let deny = envelope.objects_for_predicate(DENY).iter().cloned().map(Privilege::try_from).collect::<Result<HashSet<_>>>()?;
         Ok(Self { allow, deny })
     }
 }
@@ -76,8 +92,8 @@ mod tests {
         assert!(permissions.allow().is_empty());
         assert!(permissions.deny().is_empty());
 
-        permissions.allow_mut().insert(Function::All);
-        permissions.deny_mut().insert(Function::Verify);
+        permissions.allow_mut().insert(Privilege::All);
+        permissions.deny_mut().insert(Privilege::Verify);
 
         let envelope = permissions.add_to_envelope(Envelope::new("Subject"));
         let permissions2 = Permissions::try_from_envelope(&envelope).unwrap();

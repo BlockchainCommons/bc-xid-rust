@@ -1,21 +1,29 @@
 use std::collections::HashSet;
 
-use bc_components::{ PublicKeyBase, URI };
+use bc_components::{ AgreementPublicKey, PublicKeyBase, Signer, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
 use known_values::ENDPOINT;
+
+use crate::Privilege;
 
 use super::Permissions;
 
 #[derive(Debug, Clone)]
 pub struct Key {
-    key: PublicKeyBase,
+    public_key_base: PublicKeyBase,
     endpoints: HashSet<URI>,
     permissions: Permissions,
 }
 
 impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
+        self.public_key_base == other.public_key_base
+    }
+}
+
+impl Verifier for Key {
+    fn verify(&self, signature: &bc_components::Signature, message: &dyn AsRef<[u8]>) -> bool {
+        self.public_key_base.verify(signature, message)
     }
 }
 
@@ -23,29 +31,37 @@ impl Eq for Key {}
 
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
+        self.public_key_base.hash(state);
     }
 }
 
 impl Key {
-    pub fn new(key: PublicKeyBase) -> Self {
+    pub fn new(public_key_base: PublicKeyBase) -> Self {
         Self {
-            key,
+            public_key_base,
             endpoints: HashSet::new(),
             permissions: Permissions::new(),
         }
     }
 
-    pub fn new_allow_all(key: PublicKeyBase) -> Self {
+    pub fn new_allow_all(public_key_base: PublicKeyBase) -> Self {
         Self {
-            key,
+            public_key_base,
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
     }
 
-    pub fn key(&self) -> &PublicKeyBase {
-        &self.key
+    pub fn public_key_base(&self) -> &PublicKeyBase {
+        &self.public_key_base
+    }
+
+    pub fn signing_public_key(&self) -> &SigningPublicKey {
+        self.public_key_base.signing_public_key()
+    }
+
+    pub fn agreement_public_key(&self) -> &AgreementPublicKey {
+        self.public_key_base.agreement_public_key()
     }
 
     pub fn endpoints(&self) -> &HashSet<URI> {
@@ -63,11 +79,27 @@ impl Key {
     pub fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
     }
+
+    pub fn add_allow(&mut self, privilege: Privilege) {
+        self.permissions.add_allow(privilege);
+    }
+
+    pub fn add_deny(&mut self, privilege: Privilege) {
+        self.permissions.add_deny(privilege);
+    }
+
+    pub fn remove_allow(&mut self, privilege: &Privilege) {
+        self.permissions.remove_allow(privilege);
+    }
+
+    pub fn remove_deny(&mut self, privilege: &Privilege) {
+        self.permissions.remove_deny(privilege);
+    }
 }
 
 impl EnvelopeEncodable for Key {
     fn into_envelope(self) -> Envelope {
-        let mut envelope = Envelope::new(self.key);
+        let mut envelope = Envelope::new(self.public_key_base);
         envelope = self.endpoints
             .into_iter()
             .fold(envelope, |envelope, endpoint| envelope.add_assertion(ENDPOINT, endpoint));
@@ -79,7 +111,7 @@ impl TryFrom<&Envelope> for Key {
     type Error = anyhow::Error;
 
     fn try_from(envelope: &Envelope) -> Result<Self, Self::Error> {
-        let key = PublicKeyBase::try_from(envelope.subject().try_leaf()?)?;
+        let public_key_base = PublicKeyBase::try_from(envelope.subject().try_leaf()?)?;
         let mut endpoints = HashSet::new();
         for assertion in envelope.assertions_with_predicate(ENDPOINT) {
             let endpoint = URI::try_from(assertion.try_object()?.subject().try_leaf()?)?;
@@ -87,7 +119,7 @@ impl TryFrom<&Envelope> for Key {
         }
         let permissions = Permissions::try_from_envelope(envelope)?;
         Ok(Self {
-            key,
+            public_key_base,
             endpoints,
             permissions,
         })
@@ -107,23 +139,23 @@ mod tests {
     use super::*;
     use bc_components::PrivateKeyBase;
     use bc_rand::make_fake_random_number_generator;
-    use crate::Function;
+    use crate::Privilege;
     use indoc::indoc;
 
     #[test]
     fn test_key() {
         let mut rng = make_fake_random_number_generator();
-        let private_key = PrivateKeyBase::new_using(&mut rng);
-        let public_key = private_key.schnorr_public_key_base();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let public_key_base = private_key_base.schnorr_public_key_base();
 
         let resolver1 = URI::new("https://resolver.example.com").unwrap();
         let resolver2 = URI::new("btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33").unwrap();
         let resolvers: HashSet<URI> = vec![resolver1, resolver2].into_iter().collect();
 
-        let mut key = Key::new(public_key);
+        let mut key = Key::new(public_key_base);
         key.endpoints_mut().extend(resolvers);
-        key.permissions_mut().allow_mut().insert(Function::All);
-        key.permissions_mut().deny_mut().insert(Function::Verify);
+        key.add_allow(Privilege::All);
+        key.add_deny(Privilege::Verify);
 
         let envelope = key.clone().into_envelope();
         let key2 = Key::try_from(&envelope).unwrap();

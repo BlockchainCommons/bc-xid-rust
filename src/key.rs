@@ -4,7 +4,7 @@ use bc_components::{ AgreementPublicKey, PublicKeyBase, SigningPublicKey, Verifi
 use bc_envelope::prelude::*;
 use known_values::ENDPOINT;
 
-use crate::Privilege;
+use crate::{HasPermissions, Privilege};
 
 use super::Permissions;
 
@@ -79,20 +79,46 @@ impl Key {
     pub fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
     }
+}
 
-    pub fn add_allow(&mut self, privilege: Privilege) {
+impl HasPermissions for Key {
+    fn permissions(&self) -> &Permissions {
+        &self.permissions
+    }
+
+    fn permissions_mut(&mut self) -> &mut Permissions {
+        &mut self.permissions
+    }
+
+    fn allow(&self) -> &HashSet<Privilege> {
+        self.permissions.allow()
+    }
+
+    fn deny(&self) -> &HashSet<Privilege> {
+        self.permissions.deny()
+    }
+
+    fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
+        self.permissions.allow_mut()
+    }
+
+    fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
+        self.permissions.deny_mut()
+    }
+
+    fn add_allow(&mut self, privilege: Privilege) {
         self.permissions.add_allow(privilege);
     }
 
-    pub fn add_deny(&mut self, privilege: Privilege) {
+    fn add_deny(&mut self, privilege: Privilege) {
         self.permissions.add_deny(privilege);
     }
 
-    pub fn remove_allow(&mut self, privilege: &Privilege) {
+    fn remove_allow(&mut self, privilege: &Privilege) {
         self.permissions.remove_allow(privilege);
     }
 
-    pub fn remove_deny(&mut self, privilege: &Privilege) {
+    fn remove_deny(&mut self, privilege: &Privilege) {
         self.permissions.remove_deny(privilege);
     }
 }

@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use bc_envelope::prelude::*;
 use anyhow::{ Error, Result };
 
-use crate::Privilege;
+use crate::{HasPermissions, Privilege};
 
 use super::{ Shared, XIDDocument, Permissions };
 
@@ -36,28 +38,46 @@ impl Delegate {
     pub fn controller(&self) -> &Shared<XIDDocument> {
         &self.controller
     }
+}
 
-    pub fn permissions(&self) -> &Permissions {
+impl HasPermissions for Delegate {
+    fn permissions(&self) -> &Permissions {
         &self.permissions
     }
 
-    pub fn permissions_mut(&mut self) -> &mut Permissions {
+    fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
     }
+    
+    fn allow(&self) -> &HashSet<Privilege> {
+        self.permissions.allow()
+    }
 
-    pub fn add_allow(&mut self, privilege: Privilege) {
+    fn deny(&self) -> &HashSet<Privilege> {
+        self.permissions.deny()
+    }
+
+    fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
+        self.permissions.allow_mut()
+    }
+
+    fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
+        self.permissions.deny_mut()
+    }
+
+    fn add_allow(&mut self, privilege: Privilege) {
         self.permissions.add_allow(privilege);
     }
 
-    pub fn add_deny(&mut self, privilege: Privilege) {
+    fn add_deny(&mut self, privilege: Privilege) {
         self.permissions.add_deny(privilege);
     }
 
-    pub fn remove_allow(&mut self, privilege: &Privilege) {
+    fn remove_allow(&mut self, privilege: &Privilege) {
         self.permissions.remove_allow(privilege);
     }
 
-    pub fn remove_deny(&mut self, privilege: &Privilege) {
+    fn remove_deny(&mut self, privilege: &Privilege) {
         self.permissions.remove_deny(privilege);
     }
 }

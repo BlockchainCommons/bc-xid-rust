@@ -224,7 +224,7 @@ impl TryFrom<Envelope> for XIDDocument {
 
 impl CBORTagged for XIDDocument {
     fn cbor_tags() -> Vec<Tag> {
-        vec![tags::XID]
+        tags_for_values(&[tags::TAG_XID])
     }
 }
 
@@ -268,8 +268,8 @@ mod tests {
     use bc_rand::make_fake_random_number_generator;
     use dcbor::Date;
     use indoc::indoc;
-    use bc_components::{tags, with_tags, PrivateKeyBase, XID};
-    use provenance_mark::{ProvenanceMark, ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed};
+    use bc_components::{tags, PrivateKeyBase, XID};
+    use provenance_mark::{ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed};
 
     use crate::XIDDocument;
 
@@ -318,20 +318,21 @@ mod tests {
         let xid_cbor_diagnostic = xid.to_cbor().diagnostic();
         assert_eq!(xid_cbor_diagnostic, indoc! {r#"
         40024(
-           h'71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c'
+            h'71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c'
         )
         "#}.trim());
 
         // Print the hex encoding of the XID.
         with_tags!(|tags: &dyn dcbor::TagsStoreTrait| {
-            assert_eq!(tags.name_for_tag(&tags::XID), "xid");
-            let xid_cbor_dump = xid.to_cbor().hex_opt(true, Some(tags));
-            assert_eq!(xid_cbor_dump, indoc! {r#"
-            d9 9c58                                  # tag(40024) xid
-               5820                                  # bytes(32)
-                  71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c
-            "#}.trim());
+            assert_eq!(tags.name_for_value(tags::TAG_XID), "xid");
         });
+
+        let xid_cbor_hex = xid.to_cbor().hex_annotated();
+        assert_eq!(xid_cbor_hex, indoc! {r#"
+        d9 9c58                                 # tag(40024) xid
+            5820                                # bytes(32)
+                71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c
+        "#}.trim());
 
         // Print the XID's Bytewords and Bytemoji identifiers.
         let bytewords_identifier = xid.bytewords_identifier(true);

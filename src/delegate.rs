@@ -48,7 +48,7 @@ impl HasPermissions for Delegate {
     fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
     }
-    
+
     fn allow(&self) -> &HashSet<Privilege> {
         self.permissions.allow()
     }
@@ -246,10 +246,10 @@ mod tests {
     }
 }
 
-        // // Remove the genesis key from Alice's XIDDocument
-        // let alice_genesis_key = alice_xid_document.genesis_key().unwrap().clone();
-        // alice_xid_document.remove_key(&alice_genesis_key);
-        // assert!(alice_xid_document.genesis_key().is_none());
+        // // Remove the inception key from Alice's XIDDocument
+        // let alice_inception_key = alice_xid_document.inception_key().unwrap().clone();
+        // alice_xid_document.remove_key(&alice_inception_key);
+        // assert!(alice_xid_document.inception_key().is_none());
         // assert!(alice_xid_document.keys().is_empty());
         // assert!(alice_xid_document.is_empty());
 

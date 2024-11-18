@@ -20,11 +20,11 @@ pub struct XIDDocument {
 }
 
 impl XIDDocument {
-    pub fn new(genesis_key: PublicKeyBase) -> Self {
-        let xid = XID::new(genesis_key.signing_public_key());
-        let genesis_key = Key::new_allow_all(genesis_key);
+    pub fn new(inception_key: PublicKeyBase) -> Self {
+        let xid = XID::new(inception_key.signing_public_key());
+        let inception_key = Key::new_allow_all(inception_key);
         let mut keys = HashSet::new();
-        keys.insert(genesis_key.clone());
+        keys.insert(inception_key.clone());
         Self {
             xid,
             resolution_methods: HashSet::new(),
@@ -34,8 +34,8 @@ impl XIDDocument {
         }
     }
 
-    pub fn new_with_provenance(genesis_key: PublicKeyBase, provenance: ProvenanceMark) -> Self {
-        let mut doc = Self::new(genesis_key);
+    pub fn new_with_provenance(inception_key: PublicKeyBase, provenance: ProvenanceMark) -> Self {
+        let mut doc = Self::new(inception_key);
         doc.provenance = Some(provenance);
         doc
     }
@@ -87,13 +87,13 @@ impl XIDDocument {
         }
     }
 
-    pub fn is_genesis_key(&self, signing_public_key: &SigningPublicKey) -> bool {
+    pub fn is_inception_key(&self, signing_public_key: &SigningPublicKey) -> bool {
         self.xid.validate(signing_public_key)
     }
 
-    pub fn genesis_key(&self) -> Option<&Key> {
+    pub fn inception_key(&self) -> Option<&Key> {
         self.keys.iter().find(|k| {
-            self.is_genesis_key(k.public_key_base().signing_public_key())
+            self.is_inception_key(k.public_key_base().signing_public_key())
         })
     }
 
@@ -183,15 +183,15 @@ impl XIDDocument {
     pub fn try_from_signed_envelope(signed_envelope: &Envelope) -> Result<Self> {
         // Unwrap the envelope and construct a provisional XIDDocument.
         let xid_document = XIDDocument::try_from(&signed_envelope.unwrap_envelope()?)?;
-        // Extract the genesis key from the provisional XIDDocument, throwing an error if it is missing.
-        let genesis_key = xid_document.genesis_key().ok_or_else(|| Error::msg("Missing genesis key"))?;
-        // Verify the signature on the envelope using the genesis key.
-        signed_envelope.verify(genesis_key)?;
+        // Extract the inception key from the provisional XIDDocument, throwing an error if it is missing.
+        let inception_key = xid_document.inception_key().ok_or_else(|| Error::msg("Missing inception key"))?;
+        // Verify the signature on the envelope using the inception key.
+        signed_envelope.verify(inception_key)?;
         // Extract the XID from the provisional XIDDocument.
         let xid = xid_document.xid();
-        // Verify that the genesis key is the one that generated the XID.
-        if xid.validate(genesis_key.signing_public_key()) {
-            // If the genesis key is valid return the XIDDocument, now verified.
+        // Verify that the inception key is the one that generated the XID.
+        if xid.validate(inception_key.signing_public_key()) {
+            // If the inception key is valid return the XIDDocument, now verified.
             Ok(xid_document)
         } else {
             bail!("Invalid XID")
@@ -218,14 +218,14 @@ impl From<&XID> for XIDDocument {
 }
 
 impl From<PublicKeyBase> for XIDDocument {
-    fn from(genesis_key: PublicKeyBase) -> Self {
-        XIDDocument::new(genesis_key)
+    fn from(inception_key: PublicKeyBase) -> Self {
+        XIDDocument::new(inception_key)
     }
 }
 
 impl From<&PrivateKeyBase> for XIDDocument {
-    fn from(genesis_key: &PrivateKeyBase) -> Self {
-        XIDDocument::new(genesis_key.schnorr_public_key_base())
+    fn from(inception_key: &PrivateKeyBase) -> Self {
+        XIDDocument::new(inception_key.schnorr_public_key_base())
     }
 }
 
@@ -423,12 +423,12 @@ mod tests {
 
     #[test]
     fn test_signed_xid_document() {
-        // Generate the genesis key.
+        // Generate the inception key.
         let mut rng = make_fake_random_number_generator();
-        let private_genesis_key = PrivateKeyBase::new_using(&mut rng);
+        let private_inception_key = PrivateKeyBase::new_using(&mut rng);
 
-        // Create a XIDDocument for the genesis key.
-        let xid_document = XIDDocument::from(&private_genesis_key);
+        // Create a XIDDocument for the inception key.
+        let xid_document = XIDDocument::from(&private_inception_key);
 
         let envelope = xid_document.clone().into_envelope();
         let expected_format = indoc! {r#"
@@ -440,7 +440,7 @@ mod tests {
         "#}.trim();
         assert_eq!(envelope.format(), expected_format);
 
-        let signed_envelope = xid_document.to_signed_envelope(&private_genesis_key);
+        let signed_envelope = xid_document.to_signed_envelope(&private_inception_key);
         // println!("{}", signed_envelope.format());
         let expected_format = indoc! {r#"
         {
@@ -462,15 +462,15 @@ mod tests {
     #[test]
     fn test_with_provenance() {
         let mut rng = make_fake_random_number_generator();
-        let private_genesis_key = PrivateKeyBase::new_using(&mut rng);
-        let genesis_key = private_genesis_key.schnorr_public_key_base();
+        let private_inception_key = PrivateKeyBase::new_using(&mut rng);
+        let inception_key = private_inception_key.schnorr_public_key_base();
 
         let genesis_seed = ProvenanceSeed::new_using(&mut rng);
 
         let mut generator = ProvenanceMarkGenerator::new_with_seed(ProvenanceMarkResolution::Quartile, genesis_seed);
         let provenance = generator.next(Date::now(), None::<String>);
-        let xid_document = XIDDocument::new_with_provenance(genesis_key, provenance);
-        let signed_envelope = xid_document.to_signed_envelope(&private_genesis_key);
+        let xid_document = XIDDocument::new_with_provenance(inception_key, provenance);
+        let signed_envelope = xid_document.to_signed_envelope(&private_inception_key);
         println!("{}", signed_envelope.format());
     }
 }

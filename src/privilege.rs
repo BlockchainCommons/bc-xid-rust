@@ -24,7 +24,7 @@ pub enum Privilege {
     Delegate,   // Delegate priviledges to third parties
     Verify,     // Verify (update) the XID document
     Update,     // Update service endpoints
-    Transfer,   // Remove the genesis key from the XID document
+    Transfer,   // Remove the inception key from the XID document
     Elect,      // Add or remove other verifiers (rotate keys)
     Burn,       // Transition to a new provenance mark chain
     Revoke,     // Revoke the XID entirely

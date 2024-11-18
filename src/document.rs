@@ -450,7 +450,7 @@ mod tests {
                 ]
             ]
         } [
-            'verifiedBy': Signature
+            'signed': Signature
         ]
         "#}.trim();
         assert_eq!(signed_envelope.format(), expected_format);

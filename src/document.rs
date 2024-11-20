@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result };
-use bc_components::{ tags, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
+use bc_components::{ tags, Encrypter, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
 use known_values::{DELEGATE, DEREFERENCE_VIA, KEY, PROVENANCE};
@@ -91,10 +91,28 @@ impl XIDDocument {
         self.xid.validate(signing_public_key)
     }
 
-    pub fn inception_key(&self) -> Option<&Key> {
-        self.keys.iter().find(|k| {
+    pub fn inception_key(&self) -> Option<&SigningPublicKey> {
+        if let Some(key) = self.keys.iter().find(|k| {
             self.is_inception_key(k.public_key_base().signing_public_key())
-        })
+        }) {
+            return Some(key.public_key_base().signing_public_key());
+        } else {
+            None
+        }
+    }
+
+    pub fn verification_key(&self) -> Option<&SigningPublicKey> {
+        self.inception_key()
+    }
+
+    pub fn encryption_key(&self) -> Option<&dyn Encrypter> {
+        if let Some(key) = self.keys.iter().find(|k| {
+            self.is_inception_key(k.public_key_base().signing_public_key())
+        }) {
+            return Some(key.public_key_base().agreement_public_key());
+        } else {
+            None
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -190,12 +208,18 @@ impl XIDDocument {
         // Extract the XID from the provisional XIDDocument.
         let xid = xid_document.xid();
         // Verify that the inception key is the one that generated the XID.
-        if xid.validate(inception_key.signing_public_key()) {
+        if xid.validate(inception_key) {
             // If the inception key is valid return the XIDDocument, now verified.
             Ok(xid_document)
         } else {
             bail!("Invalid XID")
         }
+    }
+}
+
+impl AsRef<XIDDocument> for XIDDocument {
+    fn as_ref(&self) -> &XIDDocument {
+        self
     }
 }
 

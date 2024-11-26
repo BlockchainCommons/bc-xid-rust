@@ -149,7 +149,9 @@ impl HasPermissions for Key {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum PrivateKeyOptions {
+    #[default]
     Omit,
     Include,
     Elide,
@@ -299,7 +301,7 @@ mod tests {
 
         let envelope_omitting_private_key = key_including_private_key.clone()
             .into_envelope();
-        
+
         assert_eq!(envelope_omitting_private_key.format(),
         indoc! {r#"
             PublicKeyBase [

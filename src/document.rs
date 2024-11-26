@@ -1,12 +1,14 @@
 use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result };
-use bc_components::{ tags, Encrypter, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
+use bc_components::{ tags, Encrypter, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, Verifier, URI, XID };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
 use known_values::{DELEGATE, DEREFERENCE_VIA, KEY, PROVENANCE};
 use provenance_mark::ProvenanceMark;
 use bc_envelope::prelude::*;
+
+use crate::PrivateKeyOptions;
 
 use super::{Delegate, Key};
 
@@ -20,9 +22,9 @@ pub struct XIDDocument {
 }
 
 impl XIDDocument {
-    pub fn new(inception_public_key_base: PublicKeyBase) -> Self {
-        let xid = XID::new(inception_public_key_base.signing_public_key());
-        let inception_key = Key::new_allow_all(inception_public_key_base);
+    pub fn new(inception_public_key: PublicKeyBase) -> Self {
+        let xid = XID::new(inception_public_key.signing_public_key());
+        let inception_key = Key::new_allow_all(inception_public_key);
         let mut keys = HashSet::new();
         keys.insert(inception_key.clone());
         Self {
@@ -34,13 +36,23 @@ impl XIDDocument {
         }
     }
 
-    // pub fn new_with_private_key(inception_private_key_base: &PrivateKeyBase) -> Self {
-    //     let inception_public_key_base = inception_private_key_base.schnorr_public_key_base();
+    pub fn new_with_private_key(inception_private_key: PrivateKeyBase) -> Self {
+        let inception_public_key = inception_private_key.schnorr_public_key_base();
+        let xid = XID::new(inception_public_key.signing_public_key());
+        let inception_key = Key::new_with_private_key(inception_private_key);
+        let mut keys = HashSet::new();
+        keys.insert(inception_key.clone());
+        Self {
+            xid,
+            resolution_methods: HashSet::new(),
+            keys,
+            delegates: HashSet::new(),
+            provenance: None,
+        }
+    }
 
-    // }
-
-    pub fn new_with_provenance(inception_key: PublicKeyBase, provenance: ProvenanceMark) -> Self {
-        let mut doc = Self::new(inception_key);
+    pub fn new_with_provenance(inception_public_key: PublicKeyBase, provenance: ProvenanceMark) -> Self {
+        let mut doc = Self::new(inception_public_key);
         doc.provenance = Some(provenance);
         doc
     }
@@ -92,13 +104,13 @@ impl XIDDocument {
         }
     }
 
-    pub fn is_inception_key(&self, signing_public_key: &SigningPublicKey) -> bool {
+    pub fn is_inception_signing_key(&self, signing_public_key: &SigningPublicKey) -> bool {
         self.xid.validate(signing_public_key)
     }
 
-    pub fn inception_key(&self) -> Option<&SigningPublicKey> {
+    pub fn inception_signing_key(&self) -> Option<&SigningPublicKey> {
         if let Some(key) = self.keys.iter().find(|k| {
-            self.is_inception_key(k.public_key_base().signing_public_key())
+            self.is_inception_signing_key(k.public_key_base().signing_public_key())
         }) {
             return Some(key.public_key_base().signing_public_key());
         } else {
@@ -106,13 +118,13 @@ impl XIDDocument {
         }
     }
 
-    pub fn verification_key(&self) -> Option<&SigningPublicKey> {
-        self.inception_key()
+    pub fn verification_key(&self) -> Option<&dyn Verifier> {
+        self.inception_signing_key().map(|key| key as &dyn Verifier)
     }
 
     pub fn encryption_key(&self) -> Option<&dyn Encrypter> {
         if let Some(key) = self.keys.iter().find(|k| {
-            self.is_inception_key(k.public_key_base().signing_public_key())
+            self.is_inception_signing_key(k.public_key_base().signing_public_key())
         }) {
             return Some(key.public_key_base().agreement_public_key());
         } else {
@@ -157,13 +169,17 @@ impl XIDDocument {
     }
 
     fn to_unsigned_envelope(&self) -> Envelope {
+        self.to_unsigned_envelope_opt(PrivateKeyOptions::default())
+    }
+
+    fn to_unsigned_envelope_opt(&self, private_key_options: PrivateKeyOptions) -> Envelope {
         let mut envelope = Envelope::new(self.xid.clone());
 
         // Add an assertion for each resolution method.
         envelope = self.resolution_methods.iter().cloned().fold(envelope, |envelope, method| envelope.add_assertion(DEREFERENCE_VIA, method));
 
         // Add an assertion for each key in the set.
-        envelope = self.keys.iter().cloned().fold(envelope, |envelope, key| envelope.add_assertion(KEY, key));
+        envelope = self.keys.iter().cloned().fold(envelope, |envelope, key| envelope.add_assertion(KEY, key.into_envelope_opt(private_key_options)));
 
         // Add an assertion for each delegate.
         envelope = self.delegates.iter().cloned().fold(envelope, |envelope, delegate| envelope.add_assertion(DELEGATE, delegate));
@@ -200,14 +216,18 @@ impl XIDDocument {
     }
 
     pub fn to_signed_envelope(&self, signing_key: &impl Signer) -> Envelope {
-        self.to_unsigned_envelope().sign(signing_key)
+        self.to_signed_envelope_opt(signing_key, PrivateKeyOptions::default())
+    }
+
+    pub fn to_signed_envelope_opt(&self, signing_key: &impl Signer, private_key_options: PrivateKeyOptions) -> Envelope {
+        self.to_unsigned_envelope_opt(private_key_options).sign(signing_key)
     }
 
     pub fn try_from_signed_envelope(signed_envelope: &Envelope) -> Result<Self> {
         // Unwrap the envelope and construct a provisional XIDDocument.
         let xid_document = XIDDocument::try_from(&signed_envelope.unwrap_envelope()?)?;
         // Extract the inception key from the provisional XIDDocument, throwing an error if it is missing.
-        let inception_key = xid_document.inception_key().ok_or_else(|| Error::msg("Missing inception key"))?;
+        let inception_key = xid_document.inception_signing_key().ok_or_else(|| Error::msg("Missing inception key"))?;
         // Verify the signature on the envelope using the inception key.
         signed_envelope.verify(inception_key)?;
         // Extract the XID from the provisional XIDDocument.
@@ -324,12 +344,11 @@ impl CBORTaggedDecodable for XIDDocument {
 mod tests {
     use bc_envelope::prelude::*;
     use bc_rand::make_fake_random_number_generator;
-    use dcbor::Date;
     use indoc::indoc;
     use bc_components::{tags, PrivateKeyBase, XID};
     use provenance_mark::{ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed};
 
-    use crate::XIDDocument;
+    use crate::{PrivateKeyOptions, XIDDocument};
 
     #[test]
     fn test_xid_document() {
@@ -490,6 +509,8 @@ mod tests {
 
     #[test]
     fn test_with_provenance() {
+        provenance_mark::register_tags();
+
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
         let inception_key = private_inception_key.schnorr_public_key_base();
@@ -497,9 +518,128 @@ mod tests {
         let genesis_seed = ProvenanceSeed::new_using(&mut rng);
 
         let mut generator = ProvenanceMarkGenerator::new_with_seed(ProvenanceMarkResolution::Quartile, genesis_seed);
-        let provenance = generator.next(Date::now(), None::<String>);
+        let date = dcbor::Date::from_string("2025-01-01").unwrap();
+        let provenance = generator.next(date, None::<String>);
         let xid_document = XIDDocument::new_with_provenance(inception_key, provenance);
         let signed_envelope = xid_document.to_signed_envelope(&private_inception_key);
-        println!("{}", signed_envelope.format());
+        let expected_format = indoc! {r#"
+            {
+                XID(71274df1) [
+                    'key': PublicKeyBase [
+                        'allow': 'All'
+                    ]
+                    'provenance': ProvenanceMark(4bf5c551)
+                ]
+            } [
+                'signed': Signature
+            ]
+        "#}.trim();
+        assert_eq!(signed_envelope.format(), expected_format);
+
+        let self_certified_xid_document = XIDDocument::try_from_signed_envelope(&signed_envelope).unwrap();
+        assert_eq!(xid_document, self_certified_xid_document);
+    }
+
+    #[test]
+    fn test_with_private_key() {
+        let mut rng = make_fake_random_number_generator();
+        let private_inception_key = PrivateKeyBase::new_using(&mut rng);
+        let public_inception_key = private_inception_key.schnorr_public_key_base();
+
+        //
+        // A `XIDDocument` can be created from a private key, in which case it
+        // will include the private key.
+        //
+
+        let xid_document_including_private_key = XIDDocument::new_with_private_key(private_inception_key.clone());
+
+        //
+        // By default, the `Envelope` representation of a `XIDDocument` will
+        // omit the private key.
+        //
+
+        let signed_envelope_omitting_private_key = xid_document_including_private_key.to_signed_envelope(&private_inception_key);
+        let expected_format = indoc! {r#"
+            {
+                XID(71274df1) [
+                    'key': PublicKeyBase [
+                        'allow': 'All'
+                    ]
+                ]
+            } [
+                'signed': Signature
+            ]
+        "#}.trim();
+        assert_eq!(signed_envelope_omitting_private_key.format(), expected_format);
+        let xid_document2 = XIDDocument::try_from_signed_envelope(&signed_envelope_omitting_private_key).unwrap();
+
+        //
+        // A `XIDDocument` can be created from a public key, in which case its
+        // `Envelope` representation is identical to the default representation.
+        //
+
+        let xid_document_excluding_private_key = XIDDocument::new(public_inception_key);
+        assert_eq!(xid_document_excluding_private_key, xid_document2);
+
+        //
+        // The private key can be included in the `Envelope` by explicitly
+        // specifying that it should be included.
+        //
+        // The 'privateKey' assertion is salted to decorrelate the the private key.
+        //
+
+        let signed_envelope_including_private_key = xid_document_including_private_key.to_signed_envelope_opt(&private_inception_key, PrivateKeyOptions::Include);
+        let expected_format = indoc! {r#"
+            {
+                XID(71274df1) [
+                    'key': PublicKeyBase [
+                        {
+                            'privateKey': PrivateKeyBase
+                        } [
+                            'salt': Salt
+                        ]
+                        'allow': 'All'
+                    ]
+                ]
+            } [
+                'signed': Signature
+            ]
+        "#}.trim();
+        assert_eq!(signed_envelope_including_private_key.format(), expected_format);
+
+        //
+        // If the private key is included, the `XIDDocument` is reconstructed
+        // with it and is exactly the same as the original.
+        //
+
+        let xid_document2 = XIDDocument::try_from_signed_envelope(&signed_envelope_including_private_key).unwrap();
+        assert_eq!(xid_document_including_private_key, xid_document2);
+
+        //
+        // The private key assertion can be elided.
+        //
+
+        let signed_document_eliding_private_key = xid_document_including_private_key.to_signed_envelope_opt(&private_inception_key, PrivateKeyOptions::Elide);
+        let expected_format = indoc! {r#"
+            {
+                XID(71274df1) [
+                    'key': PublicKeyBase [
+                        'allow': 'All'
+                        ELIDED
+                    ]
+                ]
+            } [
+                'signed': Signature
+            ]
+        "#}.trim();
+        assert_eq!(signed_document_eliding_private_key.format(), expected_format);
+
+        //
+        // A `XIDDocument` reconstructed from an envelope with the private key
+        // elided is the same as the `XIDDocument` created from the public key.
+        //
+
+        let xid_document2 = XIDDocument::try_from_signed_envelope(&signed_document_eliding_private_key).unwrap();
+        assert_eq!(xid_document_excluding_private_key, xid_document2);
     }
 }

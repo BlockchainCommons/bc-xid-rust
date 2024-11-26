@@ -20,9 +20,9 @@ pub struct XIDDocument {
 }
 
 impl XIDDocument {
-    pub fn new(inception_key: PublicKeyBase) -> Self {
-        let xid = XID::new(inception_key.signing_public_key());
-        let inception_key = Key::new_allow_all(inception_key);
+    pub fn new(inception_public_key_base: PublicKeyBase) -> Self {
+        let xid = XID::new(inception_public_key_base.signing_public_key());
+        let inception_key = Key::new_allow_all(inception_public_key_base);
         let mut keys = HashSet::new();
         keys.insert(inception_key.clone());
         Self {
@@ -33,6 +33,11 @@ impl XIDDocument {
             provenance: None,
         }
     }
+
+    // pub fn new_with_private_key(inception_private_key_base: &PrivateKeyBase) -> Self {
+    //     let inception_public_key_base = inception_private_key_base.schnorr_public_key_base();
+
+    // }
 
     pub fn new_with_provenance(inception_key: PublicKeyBase, provenance: ProvenanceMark) -> Self {
         let mut doc = Self::new(inception_key);

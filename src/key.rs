@@ -66,7 +66,7 @@ impl Key {
             public_key_base,
             private_key_base: Some((private_key_base, salt)),
             endpoints: HashSet::new(),
-            permissions: Permissions::new(),
+            permissions: Permissions::new_allow_all(),
         }
     }
 
@@ -278,17 +278,33 @@ mod tests {
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
 
-        let key_with_private_key = Key::new_with_private_key(private_key_base.clone());
-        let key_omitting_private_key = Key::new(private_key_base.schnorr_public_key_base());
-
         //
-        // The default is to omit the private key because it is sensitive.
+        // A `Key` can be constructed from a `PrivateKeyBase` implicitly gets
+        // all permissions.
         //
 
-        let envelope_omitting_private_key = key_with_private_key.clone().into_envelope_opt(PrivateKeyOptions::Omit);
+        let key_including_private_key = Key::new_with_private_key(private_key_base.clone());
+
+        //
+        // Permissions given to a `Key` constructed from a `PublicKeyBase` are
+        // explicit.
+        //
+
+        let key_omitting_private_key = Key::new_allow_all(private_key_base.schnorr_public_key_base());
+
+        //
+        // When converting to an `Envelope`, the default is to omit the private
+        // key because it is sensitive.
+        //
+
+        let envelope_omitting_private_key = key_including_private_key.clone()
+            .into_envelope();
+        
         assert_eq!(envelope_omitting_private_key.format(),
         indoc! {r#"
-            PublicKeyBase
+            PublicKeyBase [
+                'allow': 'All'
+            ]
         "#}.trim());
 
         //
@@ -299,18 +315,24 @@ mod tests {
         assert_eq!(key_omitting_private_key, key2);
 
         //
-        // The private key can be included in the envelope.
+        // The private key can be included in the envelope by explicitly
+        // specifying that it should be included.
+        //
+        // The 'privateKey' assertion is salted to decorrelate the private key.
         //
 
-        let envelope_including_private_key = key_with_private_key.clone().into_envelope_opt(PrivateKeyOptions::Include);
+        let envelope_including_private_key = key_including_private_key.clone()
+            .into_envelope_opt(PrivateKeyOptions::Include);
+
         assert_eq!(envelope_including_private_key.format(),
         indoc! {r#"
             PublicKeyBase [
                 {
-                    'privateKey': 40016(h'7eb559bbbf6cce2632cf9f194aeb50943de7e1cbad54dcfab27a42759f5e2fed')
+                    'privateKey': PrivateKeyBase
                 } [
                     'salt': Salt
                 ]
+                'allow': 'All'
             ]
         "#}.trim());
 
@@ -320,16 +342,19 @@ mod tests {
         //
 
         let key2 = Key::try_from(&envelope_including_private_key).unwrap();
-        assert_eq!(key_with_private_key, key2);
+        assert_eq!(key_including_private_key, key2);
 
         //
         // The private key assertion can be elided.
         //
 
-        let envelope_eliding_private_key = key_with_private_key.clone().into_envelope_opt(PrivateKeyOptions::Elide);
+        let envelope_eliding_private_key = key_including_private_key.clone()
+            .into_envelope_opt(PrivateKeyOptions::Elide);
+
         assert_eq!(envelope_eliding_private_key.format(),
         indoc! {r#"
             PublicKeyBase [
+                'allow': 'All'
                 ELIDED
             ]
         "#}.trim());

@@ -1,8 +1,9 @@
 use std::collections::HashSet;
+use anyhow::Result;
 
-use bc_components::{ AgreementPublicKey, PublicKeyBase, SigningPublicKey, Verifier, URI };
+use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Salt, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
-use known_values::ENDPOINT;
+use known_values::{ENDPOINT, PRIVATE_KEY};
 
 use crate::{HasPermissions, Privilege};
 
@@ -11,13 +12,17 @@ use super::Permissions;
 #[derive(Debug, Clone)]
 pub struct Key {
     public_key_base: PublicKeyBase,
+    private_key_base: Option<(PrivateKeyBase, Salt)>,
     endpoints: HashSet<URI>,
     permissions: Permissions,
 }
 
 impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
-        self.public_key_base == other.public_key_base
+        self.public_key_base == other.public_key_base &&
+        self.private_key_base == other.private_key_base &&
+        self.endpoints == other.endpoints &&
+        self.permissions == other.permissions
     }
 }
 
@@ -39,6 +44,7 @@ impl Key {
     pub fn new(public_key_base: PublicKeyBase) -> Self {
         Self {
             public_key_base,
+            private_key_base: None,
             endpoints: HashSet::new(),
             permissions: Permissions::new(),
         }
@@ -47,13 +53,33 @@ impl Key {
     pub fn new_allow_all(public_key_base: PublicKeyBase) -> Self {
         Self {
             public_key_base,
+            private_key_base: None,
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
     }
 
+    pub fn new_with_private_key(private_key_base: PrivateKeyBase) -> Self {
+        let public_key_base = private_key_base.schnorr_public_key_base();
+        let salt = Salt::new_for_size(private_key_base.to_cbor_data().len());
+        Self {
+            public_key_base,
+            private_key_base: Some((private_key_base, salt)),
+            endpoints: HashSet::new(),
+            permissions: Permissions::new(),
+        }
+    }
+
     pub fn public_key_base(&self) -> &PublicKeyBase {
         &self.public_key_base
+    }
+
+    pub fn private_key_base(&self) -> Option<&PrivateKeyBase> {
+        self.private_key_base.as_ref().map(|(private_key_base, _)| private_key_base)
+    }
+
+    pub fn private_key_salt(&self) -> Option<&Salt> {
+        self.private_key_base.as_ref().map(|(_, salt)| salt)
     }
 
     pub fn signing_public_key(&self) -> &SigningPublicKey {
@@ -123,13 +149,56 @@ impl HasPermissions for Key {
     }
 }
 
-impl EnvelopeEncodable for Key {
-    fn into_envelope(self) -> Envelope {
-        let mut envelope = Envelope::new(self.public_key_base);
+pub enum PrivateKeyOptions {
+    Omit,
+    Include,
+    Elide,
+}
+
+impl Key {
+    fn private_key_assertion_envelope(&self) -> Envelope {
+        let (private_key_base, salt) = self.private_key_base.clone().unwrap();
+        Envelope::new_assertion(PRIVATE_KEY, private_key_base)
+            .add_salt_instance(salt)
+    }
+
+    fn extract_optional_private_key(envelope: &Envelope) -> Result<Option<(PrivateKeyBase, Salt)>> {
+        if let Some(private_key_assertion) = envelope.optional_assertion_with_predicate(PRIVATE_KEY)? {
+            let private_key_base_cbor = private_key_assertion.subject().try_object()?.try_leaf()?;
+            let private_key_base = PrivateKeyBase::try_from(private_key_base_cbor)?;
+            let salt = private_key_assertion.extract_object_for_predicate::<Salt>(known_values::SALT)?;
+            return Ok(Some((private_key_base, salt)));
+        }
+        Ok(None)
+    }
+
+    pub fn into_envelope_opt(self, private_key_options: PrivateKeyOptions) -> Envelope {
+        let mut envelope = Envelope::new(self.public_key_base().clone());
+            if self.private_key_base.is_some() {
+                match private_key_options {
+                    PrivateKeyOptions::Include => {
+                        let assertion_envelope = self.private_key_assertion_envelope();
+                        envelope = envelope.add_assertion_envelope(assertion_envelope).unwrap();
+                    }
+                    PrivateKeyOptions::Elide => {
+                        let assertion_envelope = self.private_key_assertion_envelope().elide();
+                        envelope = envelope.add_assertion_envelope(assertion_envelope).unwrap();
+                    }
+                    PrivateKeyOptions::Omit => {}
+                }
+            }
+
         envelope = self.endpoints
             .into_iter()
             .fold(envelope, |envelope, endpoint| envelope.add_assertion(ENDPOINT, endpoint));
+
         self.permissions.add_to_envelope(envelope)
+    }
+}
+
+impl EnvelopeEncodable for Key {
+    fn into_envelope(self) -> Envelope {
+        self.into_envelope_opt(PrivateKeyOptions::Omit)
     }
 }
 
@@ -138,6 +207,7 @@ impl TryFrom<&Envelope> for Key {
 
     fn try_from(envelope: &Envelope) -> Result<Self, Self::Error> {
         let public_key_base = PublicKeyBase::try_from(envelope.subject().try_leaf()?)?;
+        let private_key_base = Key::extract_optional_private_key(envelope)?;
         let mut endpoints = HashSet::new();
         for assertion in envelope.assertions_with_predicate(ENDPOINT) {
             let endpoint = URI::try_from(assertion.try_object()?.subject().try_leaf()?)?;
@@ -146,6 +216,7 @@ impl TryFrom<&Envelope> for Key {
         let permissions = Permissions::try_from_envelope(envelope)?;
         Ok(Self {
             public_key_base,
+            private_key_base,
             endpoints,
             permissions,
         })
@@ -170,6 +241,8 @@ mod tests {
 
     #[test]
     fn test_key() {
+        bc_envelope::register_tags();
+
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
         let public_key_base = private_key_base.schnorr_public_key_base();
@@ -196,5 +269,83 @@ mod tests {
             'endpoint': URI(https://resolver.example.com)
         ]
         "#}.trim());
+    }
+
+    #[test]
+    fn test_with_private_key() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+
+        let key_with_private_key = Key::new_with_private_key(private_key_base.clone());
+        let key_omitting_private_key = Key::new(private_key_base.schnorr_public_key_base());
+
+        //
+        // The default is to omit the private key because it is sensitive.
+        //
+
+        let envelope_omitting_private_key = key_with_private_key.clone().into_envelope_opt(PrivateKeyOptions::Omit);
+        assert_eq!(envelope_omitting_private_key.format(),
+        indoc! {r#"
+            PublicKeyBase
+        "#}.trim());
+
+        //
+        // If the private key is omitted, the Key is reconstructed without it.
+        //
+
+        let key2 = Key::try_from(&envelope_omitting_private_key).unwrap();
+        assert_eq!(key_omitting_private_key, key2);
+
+        //
+        // The private key can be included in the envelope.
+        //
+
+        let envelope_including_private_key = key_with_private_key.clone().into_envelope_opt(PrivateKeyOptions::Include);
+        assert_eq!(envelope_including_private_key.format(),
+        indoc! {r#"
+            PublicKeyBase [
+                {
+                    'privateKey': 40016(h'7eb559bbbf6cce2632cf9f194aeb50943de7e1cbad54dcfab27a42759f5e2fed')
+                } [
+                    'salt': Salt
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // If the private key is included, the Key is reconstructed with it and
+        // is exactly the same as the original.
+        //
+
+        let key2 = Key::try_from(&envelope_including_private_key).unwrap();
+        assert_eq!(key_with_private_key, key2);
+
+        //
+        // The private key assertion can be elided.
+        //
+
+        let envelope_eliding_private_key = key_with_private_key.clone().into_envelope_opt(PrivateKeyOptions::Elide);
+        assert_eq!(envelope_eliding_private_key.format(),
+        indoc! {r#"
+            PublicKeyBase [
+                ELIDED
+            ]
+        "#}.trim());
+
+        //
+        // If the private key is elided, the Key is reconstructed without it.
+        //
+
+        let key2 = Key::try_from(&envelope_eliding_private_key).unwrap();
+        assert_eq!(key_omitting_private_key, key2);
+
+        //
+        // The elided envelope has the same root hash as the envelope including the private key,
+        // affording inclusion proofs.
+        //
+
+        assert!(envelope_eliding_private_key.is_equivalent_to(&envelope_including_private_key));
     }
 }

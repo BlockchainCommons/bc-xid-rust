@@ -636,7 +636,7 @@ mod tests {
 
         //
         // A `XIDDocument` reconstructed from an envelope with the private key
-        // elided is the same as the `XIDDocument` created from the public key.
+        // elided is the same as the `XIDDocument` created from only the public key.
         //
 
         let xid_document2 = XIDDocument::try_from_signed_envelope(&signed_document_eliding_private_key).unwrap();

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result };
-use bc_components::{ tags, Encrypter, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, Verifier, URI, XID };
+use bc_components::{ tags, AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
 use known_values::{DELEGATE, DEREFERENCE_VIA, KEY, PROVENANCE};
@@ -132,7 +132,7 @@ impl XIDDocument {
         }
     }
 
-    pub fn verification_key(&self) -> Option<&dyn Verifier> {
+    pub fn verification_key(&self) -> Option<&SigningPublicKey> {
         // Prefer the inception key for verification.
         if let Some(key) = self.inception_key() {
             return Some(key.public_key_base().signing_public_key());
@@ -143,7 +143,7 @@ impl XIDDocument {
         }
     }
 
-    pub fn encryption_key(&self) -> Option<&dyn Encrypter> {
+    pub fn encryption_key(&self) -> Option<&AgreementPublicKey> {
         // Prefer the inception key for encryption.
         if let Some(key) = self.inception_key() {
             return Some(key.public_key_base().agreement_public_key());

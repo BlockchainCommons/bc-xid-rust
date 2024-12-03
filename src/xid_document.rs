@@ -118,14 +118,36 @@ impl XIDDocument {
         }
     }
 
+    pub fn inception_key(&self) -> Option<&Key> {
+        self.keys.iter().find(|k| {
+            self.is_inception_signing_key(k.public_key_base().signing_public_key())
+        })
+    }
+
+    pub fn remove_inception_key(&mut self) -> Option<Key> {
+        if let Some(key) = self.inception_key().cloned() {
+            self.keys.take(&key)
+        } else {
+            None
+        }
+    }
+
     pub fn verification_key(&self) -> Option<&dyn Verifier> {
-        self.inception_signing_key().map(|key| key as &dyn Verifier)
+        // Prefer the inception key for verification.
+        if let Some(key) = self.inception_key() {
+            return Some(key.public_key_base().signing_public_key());
+        } else if let Some(key) = self.keys.iter().next() {
+            return Some(key.public_key_base().signing_public_key());
+        } else {
+            None
+        }
     }
 
     pub fn encryption_key(&self) -> Option<&dyn Encrypter> {
-        if let Some(key) = self.keys.iter().find(|k| {
-            self.is_inception_signing_key(k.public_key_base().signing_public_key())
-        }) {
+        // Prefer the inception key for encryption.
+        if let Some(key) = self.inception_key() {
+            return Some(key.public_key_base().agreement_public_key());
+        } else if let Some(key) = self.keys.iter().next() {
             return Some(key.public_key_base().agreement_public_key());
         } else {
             None
@@ -272,9 +294,15 @@ impl From<PublicKeyBase> for XIDDocument {
     }
 }
 
+impl From<PrivateKeyBase> for XIDDocument {
+    fn from(inception_key: PrivateKeyBase) -> Self {
+        XIDDocument::new_with_private_key(inception_key)
+    }
+}
+
 impl From<&PrivateKeyBase> for XIDDocument {
     fn from(inception_key: &PrivateKeyBase) -> Self {
-        XIDDocument::new(inception_key.schnorr_public_key_base())
+        XIDDocument::new_with_private_key(inception_key.clone())
     }
 }
 
@@ -348,14 +376,15 @@ mod tests {
     use bc_components::{tags, PrivateKeyBase, XID};
     use provenance_mark::{ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed};
 
-    use crate::{PrivateKeyOptions, XIDDocument};
+    use crate::{Key, PrivateKeyOptions, XIDDocument};
 
     #[test]
-    fn test_xid_document() {
+    fn xid_document() {
         // Create a XID document.
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let xid_document = XIDDocument::from(&private_key_base);
+        let public_key_base = private_key_base.schnorr_public_key_base();
+        let xid_document = XIDDocument::new(public_key_base);
 
         // Extract the XID from the XID document.
         let xid = xid_document.xid();
@@ -428,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn test_minimal_xid_document() {
+    fn minimal_xid_document() {
         // Create a XID.
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
@@ -470,13 +499,14 @@ mod tests {
     }
 
     #[test]
-    fn test_signed_xid_document() {
+    fn signed_xid_document() {
         // Generate the inception key.
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
+        let public_inception_key = private_inception_key.schnorr_public_key_base();
 
         // Create a XIDDocument for the inception key.
-        let xid_document = XIDDocument::from(&private_inception_key);
+        let xid_document = XIDDocument::new(public_inception_key);
 
         let envelope = xid_document.clone().into_envelope();
         let expected_format = indoc! {r#"
@@ -508,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_provenance() {
+    fn with_provenance() {
         provenance_mark::register_tags();
 
         let mut rng = make_fake_random_number_generator();
@@ -541,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_private_key() {
+    fn with_private_key() {
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
         let public_inception_key = private_inception_key.schnorr_public_key_base();
@@ -641,5 +671,53 @@ mod tests {
 
         let xid_document2 = XIDDocument::try_from_signed_envelope(&signed_document_eliding_private_key).unwrap();
         assert_eq!(xid_document_excluding_private_key, xid_document2);
+    }
+
+    #[test]
+    fn change_key() {
+        // Create a XID document.
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let xid_document = XIDDocument::from(&private_key_base);
+
+        // Remove the inception key.
+        let mut xid_document_2 = xid_document.clone();
+        let inception_key = xid_document_2.remove_inception_key().unwrap();
+        assert_eq!(xid_document.inception_key(), Some(&inception_key));
+        assert!(xid_document_2.inception_key().is_none());
+        assert!(xid_document_2.is_empty());
+
+        let xid_document2_envelope = xid_document_2.to_envelope();
+        let expected_format = indoc! {r#"
+            XID(71274df1)
+        "#}.trim();
+        assert_eq!(xid_document2_envelope.format(), expected_format);
+
+        // Create a new key.
+        let private_key_base_2 = PrivateKeyBase::new_using(&mut rng);
+        let public_key_base_2 = private_key_base_2.schnorr_public_key_base();
+
+        // Add the new key to the empty XID document.
+        let key_2 = Key::new_allow_all(public_key_base_2);
+        xid_document_2.add_key(key_2.clone());
+        let xid_document2_envelope = xid_document_2.to_envelope();
+        let expected_format = indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeyBase [
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim();
+        assert_eq!(xid_document2_envelope.format(), expected_format);
+
+        // Same XID, but different key.
+        assert_ne!(xid_document, xid_document_2);
+
+        // The new XID document does not have an inception key.
+        assert!(xid_document_2.inception_key().is_none());
+
+        // But it does have an encrypter and a verifier.
+        assert!(xid_document_2.encryption_key().is_some());
+        assert!(xid_document_2.verification_key().is_some());
     }
 }

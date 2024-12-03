@@ -30,8 +30,8 @@
 mod privilege;
 pub use privilege::*;
 
-mod document;
-pub use document::*;
+mod xid_document;
+pub use xid_document::*;
 
 mod shared;
 pub use shared::*;

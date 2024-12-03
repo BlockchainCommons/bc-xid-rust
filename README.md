@@ -1,4 +1,4 @@
-# Blockchain Commons Provenance Marks for Rust
+# XID: Extensible Identifiers for Rust
 
 <!--Guidelines: https://github.com/BlockchainCommons/secure-template/wiki -->
 

@@ -1,3 +1,6 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
 # Contributor License Agreement
 
 Version 1.0
@@ -49,3 +52,19 @@ I promise not to offer contributions that contain or depend on the work of other
 ## Disclaimers
 
 ***As far as the law allows, my contributions come as is, without any warranty or condition.  Other than under [Copyright Guarantee](#copyright-guarantee), [Patent Guarantee](#patent-guarantee), or [Open Source Guarantee](#open-source-guarantee), I will not be liable to anyone for any damages related to my contributions or this contributor license agreement, under any kind of legal claim.***
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCAAdFiEElDZS7jhEF2DD3DU2S2wvz4lHgK4FAmdObIcACgkQS2wvz4lH
+gK48XQ//ajhtKHBTNhAcpykq/L3D0q+zaSlmxsecCbkbPgStVNv3veJhc3hwy27R
+9L3dU9DomiSz5sj9JneJGfzy3ffqzYzhxehlHXfQxu2Tak5aq5rRL2y3RrcD59um
+bunrQvVR0f5F5wXt4BldXLqLl5hC6l2PDk7MOCJkCaYvQryltOSIIN/3mmwfMJd4
+5LeM6tRifGTlh/IIqFemR6y7Al2wFovd/gaBMhr+veLTBN3mAzUr1c0MeibFH8bG
++UpzrH6N/wDLN3wpq7AxYBgblHKqsBkH+barU3I7LGB1ah98pPQGB+z88u8Na6BT
+Gbwx6H136onb0oqPOVIXRAnV1MCnQPaCPcV1hDhTCsoPz6tJjj3xWTsXWh837w7t
+I716qm0fFSFPquWJkAcPQCMPPy1JjhriFBXA2LaT7xWVaZxOk8JYHNMknkBY1a94
+71N6NzyvSl0UQWyqSJeXM5/U+vHUaJC3zS40f5pNBBJ9vcUCNCU+V7jN/XpolpzK
+oro/BwxSkeikvzbyEQfHjuMTcXgQrBY8KFE7btnTfIBSKtkqY4tZnUkaLQD6KcOY
+o7LvoeOFMwX+Pv7CAZ/LrHc1M7ZmzLxHr/c9X1aFlJgMPJouP96q7xpyqxwSj6NB
+C4qsFGF5cwxGZwZhhGva1W6FkeQMJzf6bq4a/k/jK04p1rKXDr8=
+=LbAc
+-----END PGP SIGNATURE-----

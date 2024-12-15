@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use bc_envelope::prelude::*;
 use anyhow::{ Error, Result };
 
-use crate::{HasPermissions, Privilege};
+use crate::{ HasPermissions, Privilege };
 
 use super::{ Shared, XIDDocument, Permissions };
 
@@ -89,11 +89,7 @@ impl HasPermissions for Delegate {
 impl EnvelopeEncodable for Delegate {
     fn into_envelope(self) -> Envelope {
         let doc = self.controller.read();
-        let envelope = if doc.is_empty() {
-            doc.clone().into_envelope()
-        } else {
-            doc.clone().into_envelope().wrap_envelope()
-        };
+        let envelope = doc.clone().into_envelope().wrap_envelope();
         self.permissions.add_to_envelope(envelope)
     }
 }
@@ -103,11 +99,7 @@ impl TryFrom<&Envelope> for Delegate {
 
     fn try_from(envelope: &Envelope) -> Result<Self> {
         let permissions = Permissions::try_from_envelope(envelope)?;
-        let inner = if envelope.subject().is_wrapped() {
-            envelope.unwrap_envelope()?
-        } else {
-            envelope.clone()
-        };
+        let inner = envelope.unwrap_envelope()?;
         let controller = Shared::new(XIDDocument::try_from(inner)?);
         Ok(Self {
             controller,
@@ -141,13 +133,13 @@ mod tests {
         let alice_xid_document = XIDDocument::from(&alice_private_key_base);
 
         let envelope = alice_xid_document.clone().into_envelope();
-        let expected = indoc! {r#"
+        let expected = (indoc! {r#"
         XID(71274df1) [
             'key': PublicKeyBase [
                 'allow': 'All'
             ]
         ]
-        "#}.trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected);
 
         // Create Bob's XIDDocument
@@ -155,16 +147,18 @@ mod tests {
         let bob_xid_document = XIDDocument::from(&bob_private_key_base);
 
         let envelope = bob_xid_document.clone().into_envelope();
-        let expected = indoc! {r#"
+        let expected = (indoc! {r#"
         XID(7c30cafe) [
             'key': PublicKeyBase [
                 'allow': 'All'
             ]
         ]
-        "#}.trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected);
 
-        let mut bob_unresolved_delegate = Delegate::new(XIDDocument::from_xid(bob_xid_document.xid()));
+        let mut bob_unresolved_delegate = Delegate::new(
+            XIDDocument::from_xid(bob_xid_document.xid())
+        );
         bob_unresolved_delegate.add_deny(Privilege::All);
         bob_unresolved_delegate.add_allow(Privilege::Encrypt);
         bob_unresolved_delegate.add_allow(Privilege::Sign);
@@ -173,21 +167,26 @@ mod tests {
         let bob_unresolved_delegate_2 = Delegate::try_from(&envelope).unwrap();
         assert_eq!(bob_unresolved_delegate, bob_unresolved_delegate_2);
 
-        let expected = indoc! {r#"
-        XID(7c30cafe) [
+        let expected = (indoc! {r#"
+        {
+            XID(7c30cafe)
+        } [
             'allow': 'Encrypt'
             'allow': 'Sign'
             'deny': 'All'
         ]
-        "#}.trim();
+        "#}
+        ).trim();
         assert_eq!(envelope.format(), expected);
 
         let mut alice_xid_document_with_unresolved_delegate = alice_xid_document.clone();
         alice_xid_document_with_unresolved_delegate.add_delegate(bob_unresolved_delegate);
         let envelope = alice_xid_document_with_unresolved_delegate.clone().into_envelope();
-        let expected = indoc! {r#"
+        let expected = (indoc! {r#"
         XID(71274df1) [
-            'delegate': XID(7c30cafe) [
+            'delegate': {
+                XID(7c30cafe)
+            } [
                 'allow': 'Encrypt'
                 'allow': 'Sign'
                 'deny': 'All'
@@ -196,7 +195,7 @@ mod tests {
                 'allow': 'All'
             ]
         ]
-        "#}.trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected);
 
         // Make Bob a Delegate with specific permissions
@@ -209,7 +208,7 @@ mod tests {
         let bob_delegate_2 = Delegate::try_from(&envelope).unwrap();
         assert_eq!(bob_delegate, bob_delegate_2);
 
-        let expected = indoc! {r#"
+        let expected = (indoc! {r#"
         {
             XID(7c30cafe) [
                 'key': PublicKeyBase [
@@ -221,14 +220,14 @@ mod tests {
             'allow': 'Sign'
             'deny': 'All'
         ]
-        "#}.trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected);
 
         // Add Bob as a Delegate to Alice's XIDDocument
         let mut alice_xid_document_with_delegate = alice_xid_document.clone();
         alice_xid_document_with_delegate.add_delegate(bob_delegate);
         let envelope = alice_xid_document_with_delegate.clone().into_envelope();
-        let expected = indoc! {r#"
+        let expected = (indoc! {r#"
         XID(71274df1) [
             'delegate': {
                 XID(7c30cafe) [
@@ -245,7 +244,7 @@ mod tests {
                 'allow': 'All'
             ]
         ]
-        "#}.trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected);
     }
 }

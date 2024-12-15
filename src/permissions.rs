@@ -23,6 +23,7 @@ pub trait HasPermissions {
     fn add_deny(&mut self, privilege: Privilege);
     fn remove_allow(&mut self, privilege: &Privilege);
     fn remove_deny(&mut self, privilege: &Privilege);
+    fn clear_all_permissions(&mut self);
 }
 
 impl Permissions {
@@ -64,7 +65,7 @@ impl HasPermissions for Permissions {
     fn permissions_mut(&mut self) -> &mut Permissions {
         self
     }
-    
+
     fn allow(&self) -> &HashSet<Privilege> {
         &self.allow
     }
@@ -95,6 +96,11 @@ impl HasPermissions for Permissions {
 
     fn remove_deny(&mut self, privilege: &Privilege) {
         self.deny.remove(privilege);
+    }
+
+    fn clear_all_permissions(&mut self) {
+        self.allow.clear();
+        self.deny.clear();
     }
 }
 

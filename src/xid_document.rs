@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result };
-use bc_components::{ tags, AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
+use bc_components::{ tags::TAG_XID, AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Signer, SigningPublicKey, URI, XID };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
 use known_values::{DELEGATE, DEREFERENCE_VIA, KEY, PROVENANCE};
@@ -23,14 +23,17 @@ pub struct XIDDocument {
 
 impl XIDDocument {
     pub fn new(inception_public_key: PublicKeyBase) -> Self {
+        let mut doc = Self::new_empty(&inception_public_key);
+        doc.add_key(Key::new_allow_all(inception_public_key)).unwrap();
+        doc
+    }
+
+    pub fn new_empty(inception_public_key: &PublicKeyBase) -> Self {
         let xid = XID::new(inception_public_key.signing_public_key());
-        let inception_key = Key::new_allow_all(inception_public_key);
-        let mut keys = HashSet::new();
-        keys.insert(inception_key.clone());
         Self {
             xid,
             resolution_methods: HashSet::new(),
-            keys,
+            keys: HashSet::new(),
             delegates: HashSet::new(),
             provenance: None,
         }
@@ -79,6 +82,14 @@ impl XIDDocument {
         &mut self.resolution_methods
     }
 
+    pub fn add_resolution_method(&mut self, method: URI) {
+        self.resolution_methods.insert(method);
+    }
+
+    pub fn remove_resolution_method(&mut self, method: &URI) -> Option<URI> {
+        self.resolution_methods.take(method)
+    }
+
     pub fn keys(&self) -> &HashSet<Key> {
         &self.keys
     }
@@ -87,8 +98,12 @@ impl XIDDocument {
         &mut self.keys
     }
 
-    pub fn add_key(&mut self, key: Key) {
+    pub fn add_key(&mut self, key: Key) -> Result<()> {
+        if self.keys.contains(&key) {
+            bail!("Key already exists");
+        }
         self.keys.insert(key);
+        Ok(())
     }
 
     pub fn find_key_by_public_key_base(&self, key: &PublicKeyBase) -> Option<&Key> {
@@ -190,11 +205,11 @@ impl XIDDocument {
         self.provenance = provenance;
     }
 
-    fn to_unsigned_envelope(&self) -> Envelope {
+    pub fn to_unsigned_envelope(&self) -> Envelope {
         self.to_unsigned_envelope_opt(PrivateKeyOptions::default())
     }
 
-    fn to_unsigned_envelope_opt(&self, private_key_options: PrivateKeyOptions) -> Envelope {
+    pub fn to_unsigned_envelope_opt(&self, private_key_options: PrivateKeyOptions) -> Envelope {
         let mut envelope = Envelope::new(self.xid.clone());
 
         // Add an assertion for each resolution method.
@@ -214,7 +229,7 @@ impl XIDDocument {
         envelope
     }
 
-    fn from_unsigned_envelope(envelope: &Envelope) -> Result<Self> {
+    pub fn from_unsigned_envelope(envelope: &Envelope) -> Result<Self> {
         let xid: XID = envelope.subject().try_leaf()?.try_into()?;
 
         let resolution_methods = envelope.extract_objects_for_predicate::<URI>(DEREFERENCE_VIA)?.into_iter().collect::<HashSet<_>>();
@@ -330,7 +345,7 @@ impl TryFrom<Envelope> for XIDDocument {
 
 impl CBORTagged for XIDDocument {
     fn cbor_tags() -> Vec<Tag> {
-        tags_for_values(&[tags::TAG_XID])
+        tags_for_values(&[TAG_XID])
     }
 }
 
@@ -373,7 +388,7 @@ mod tests {
     use bc_envelope::prelude::*;
     use bc_rand::make_fake_random_number_generator;
     use indoc::indoc;
-    use bc_components::{tags, PrivateKeyBase, XID};
+    use bc_components::{tags, PrivateKeyBase, URI, XID};
     use provenance_mark::{ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed};
 
     use crate::{Key, PrivateKeyOptions, XIDDocument};
@@ -496,6 +511,39 @@ mod tests {
         assert_eq!(xid_ur, expected_ur);
         let xid_document_ur = xid_document.ur_string();
         assert_eq!(xid_document_ur, expected_ur);
+    }
+
+    #[test]
+    fn document_with_resolution_methods() {
+        // Create a XID document.
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let public_key_base = private_key_base.schnorr_public_key_base();
+        let mut xid_document = XIDDocument::new_empty(&public_key_base);
+
+        // Add resolution methods.
+        xid_document.add_resolution_method(URI::from("https://resolver.example.com"));
+        xid_document.add_resolution_method(URI::from("btcr:01234567"));
+
+        // Convert the XID document to an Envelope.
+        let envelope = xid_document.clone().into_envelope();
+        println!("{}", envelope.format());
+        let expected_format = indoc! {r#"
+        XID(71274df1) [
+            'dereferenceVia': URI(btcr:01234567)
+            'dereferenceVia': URI(https://resolver.example.com)
+        ]
+        "#}.trim();
+        assert_eq!(envelope.format(), expected_format);
+
+        // Convert the Envelope back to a XIDDocument.
+        let xid_document2 = XIDDocument::try_from(envelope).unwrap();
+        assert_eq!(xid_document, xid_document2);
+
+        // let cbor = xid_document.to_cbor();
+        // println!("{}", cbor.diagnostic());
+        // let ur = xid_document.ur();
+        // println!("{}", ur);
     }
 
     #[test]
@@ -699,7 +747,7 @@ mod tests {
 
         // Add the new key to the empty XID document.
         let key_2 = Key::new_allow_all(public_key_base_2);
-        xid_document_2.add_key(key_2.clone());
+        xid_document_2.add_key(key_2.clone()).unwrap();
         let xid_document2_envelope = xid_document_2.to_envelope();
         let expected_format = indoc! {r#"
             XID(71274df1) [

@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Salt, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
-use known_values::{ENDPOINT, PRIVATE_KEY};
+use known_values::{ENDPOINT, PRIVATE_KEY, HAS_NAME};
 
 use crate::{HasPermissions, Privilege};
 
@@ -13,6 +13,7 @@ use super::Permissions;
 pub struct Key {
     public_key_base: PublicKeyBase,
     private_key_base: Option<(PrivateKeyBase, Salt)>,
+    name: String,
     endpoints: HashSet<URI>,
     permissions: Permissions,
 }
@@ -21,6 +22,7 @@ impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
         self.public_key_base == other.public_key_base &&
         self.private_key_base == other.private_key_base &&
+        self.name == other.name &&
         self.endpoints == other.endpoints &&
         self.permissions == other.permissions
     }
@@ -45,6 +47,7 @@ impl Key {
         Self {
             public_key_base,
             private_key_base: None,
+            name: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new(),
         }
@@ -54,6 +57,7 @@ impl Key {
         Self {
             public_key_base,
             private_key_base: None,
+            name: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
@@ -65,6 +69,7 @@ impl Key {
         Self {
             public_key_base,
             private_key_base: Some((private_key_base, salt)),
+            name: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
@@ -90,6 +95,14 @@ impl Key {
         self.public_key_base.agreement_public_key()
     }
 
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn set_name(&mut self, name: impl Into<String>) {
+        self.name = name.into();
+    }
+
     pub fn endpoints(&self) -> &HashSet<URI> {
         &self.endpoints
     }
@@ -98,12 +111,20 @@ impl Key {
         &mut self.endpoints
     }
 
+    pub fn add_endpoint(&mut self, endpoint: URI) {
+        self.endpoints.insert(endpoint);
+    }
+
     pub fn permissions(&self) -> &Permissions {
         &self.permissions
     }
 
     pub fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
+    }
+
+    pub fn add_permission(&mut self, privilege: Privilege) {
+        self.permissions.add_allow(privilege);
     }
 }
 
@@ -146,6 +167,10 @@ impl HasPermissions for Key {
 
     fn remove_deny(&mut self, privilege: &Privilege) {
         self.permissions.remove_deny(privilege);
+    }
+
+    fn clear_all_permissions(&mut self) {
+        self.permissions.clear_all_permissions();
     }
 }
 
@@ -190,6 +215,10 @@ impl Key {
                 }
             }
 
+        if !self.name.is_empty() {
+            envelope = envelope.add_assertion(known_values::HAS_NAME, self.name);
+        }
+
         envelope = self.endpoints
             .into_iter()
             .fold(envelope, |envelope, endpoint| envelope.add_assertion(ENDPOINT, endpoint));
@@ -210,6 +239,9 @@ impl TryFrom<&Envelope> for Key {
     fn try_from(envelope: &Envelope) -> Result<Self, Self::Error> {
         let public_key_base = PublicKeyBase::try_from(envelope.subject().try_leaf()?)?;
         let private_key_base = Key::extract_optional_private_key(envelope)?;
+
+        let name = envelope.extract_object_for_predicate_with_default(HAS_NAME, String::new())?;
+
         let mut endpoints = HashSet::new();
         for assertion in envelope.assertions_with_predicate(ENDPOINT) {
             let endpoint = URI::try_from(assertion.try_object()?.subject().try_leaf()?)?;
@@ -219,6 +251,7 @@ impl TryFrom<&Envelope> for Key {
         Ok(Self {
             public_key_base,
             private_key_base,
+            name,
             endpoints,
             permissions,
         })
@@ -257,6 +290,7 @@ mod tests {
         key.endpoints_mut().extend(resolvers);
         key.add_allow(Privilege::All);
         key.add_deny(Privilege::Verify);
+        key.set_name("Alice's key".to_string());
 
         let envelope = key.clone().into_envelope();
         let key2 = Key::try_from(&envelope).unwrap();
@@ -269,6 +303,7 @@ mod tests {
             'deny': 'Verify'
             'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
             'endpoint': URI(https://resolver.example.com)
+            'hasName': "Alice's key"
         ]
         "#}.trim());
     }

@@ -4,30 +4,55 @@ use known_values::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Privilege {
-    All,        // Allow all applicable XID operations
+    /// Allow all applicable XID operations
+    All,
 
     //
     // Operational Functions
     //
 
-    Auth,       // Authenticate as the subject (e.g., log into services)
-    Sign,       // Sign digital communications as the subject
-    Encrypt,    // Encrypt messages from the subject
-    Elide,      // Elide data under the subject's control
-    Issue,      // Issue or revoke verifiable credentials on the subject's authority
-    Access,     // Access resources under the subject's control
+    /// Authenticate as the subject (e.g., log into services)
+    Auth,
+
+    /// Sign digital communications as the subject
+    Sign,
+
+    /// Encrypt messages from the subject
+    Encrypt,
+
+    /// Elide data under the subject's control
+    Elide,
+
+    /// Issue or revoke verifiable credentials on the subject's authority
+    Issue,
+
+    /// Access resources under the subject's control
+    Access,
 
     //
     // Management Functions
     //
 
-    Delegate,   // Delegate priviledges to third parties
-    Verify,     // Verify (update) the XID document
-    Update,     // Update service endpoints
-    Transfer,   // Remove the inception key from the XID document
-    Elect,      // Add or remove other verifiers (rotate keys)
-    Burn,       // Transition to a new provenance mark chain
-    Revoke,     // Revoke the XID entirely
+    /// Delegate priviledges to third parties
+    Delegate,
+
+    /// Verify (update) the XID document
+    Verify,
+
+    /// Update service endpoints
+    Update,
+
+    /// Remove the inception key from the XID document
+    Transfer,
+
+    /// Add or remove other verifiers (rotate keys)
+    Elect,
+
+    /// Transition to a new provenance mark chain
+    Burn,
+
+    /// Revoke the XID entirely
+    Revoke,
 }
 
 impl From<&Privilege> for KnownValue {

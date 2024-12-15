@@ -80,6 +80,10 @@ impl HasPermissions for Delegate {
     fn remove_deny(&mut self, privilege: &Privilege) {
         self.permissions.remove_deny(privilege);
     }
+
+    fn clear_all_permissions(&mut self) {
+        self.permissions.clear_all_permissions();
+    }
 }
 
 impl EnvelopeEncodable for Delegate {
@@ -245,16 +249,3 @@ mod tests {
         assert_eq!(envelope.format(), expected);
     }
 }
-
-        // // Remove the inception key from Alice's XIDDocument
-        // let alice_inception_key = alice_xid_document.inception_key().unwrap().clone();
-        // alice_xid_document.remove_key(&alice_inception_key);
-        // assert!(alice_xid_document.inception_key().is_none());
-        // assert!(alice_xid_document.keys().is_empty());
-        // assert!(alice_xid_document.is_empty());
-
-        // let envelope = alice_xid_document.clone().into_envelope();
-        // let expected = indoc! {r#"
-        // XID(71274df1)
-        // "#}.trim();
-        // assert_eq!(envelope.format(), expected);

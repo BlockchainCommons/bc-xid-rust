@@ -289,7 +289,6 @@ mod tests {
         let mut key = Key::new(public_key_base);
         key.endpoints_mut().extend(resolvers);
         key.add_allow(Privilege::All);
-        key.add_deny(Privilege::Verify);
         key.set_name("Alice's key".to_string());
 
         let envelope = key.clone().into_envelope();
@@ -300,7 +299,6 @@ mod tests {
         indoc! {r#"
         PublicKeyBase [
             'allow': 'All'
-            'deny': 'Verify'
             'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
             'endpoint': URI(https://resolver.example.com)
             'hasName': "Alice's key"

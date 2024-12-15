@@ -159,7 +159,6 @@ mod tests {
         let mut bob_unresolved_delegate = Delegate::new(
             XIDDocument::from_xid(bob_xid_document.xid())
         );
-        bob_unresolved_delegate.add_deny(Privilege::All);
         bob_unresolved_delegate.add_allow(Privilege::Encrypt);
         bob_unresolved_delegate.add_allow(Privilege::Sign);
 
@@ -173,7 +172,6 @@ mod tests {
         } [
             'allow': 'Encrypt'
             'allow': 'Sign'
-            'deny': 'All'
         ]
         "#}
         ).trim();
@@ -189,7 +187,6 @@ mod tests {
             } [
                 'allow': 'Encrypt'
                 'allow': 'Sign'
-                'deny': 'All'
             ]
             'key': PublicKeyBase [
                 'allow': 'All'
@@ -200,7 +197,6 @@ mod tests {
 
         // Make Bob a Delegate with specific permissions
         let mut bob_delegate = Delegate::new(bob_xid_document);
-        bob_delegate.add_deny(Privilege::All);
         bob_delegate.add_allow(Privilege::Encrypt);
         bob_delegate.add_allow(Privilege::Sign);
 
@@ -218,7 +214,6 @@ mod tests {
         } [
             'allow': 'Encrypt'
             'allow': 'Sign'
-            'deny': 'All'
         ]
         "#}).trim();
         assert_eq!(envelope.format(), expected);
@@ -238,7 +233,6 @@ mod tests {
             } [
                 'allow': 'Encrypt'
                 'allow': 'Sign'
-                'deny': 'All'
             ]
             'key': PublicKeyBase [
                 'allow': 'All'

@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Salt, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
-use known_values::{ENDPOINT, PRIVATE_KEY, HAS_NAME};
+use known_values::{ENDPOINT, PRIVATE_KEY, NAME};
 
 use crate::{HasPermissions, Privilege};
 
@@ -216,7 +216,7 @@ impl Key {
             }
 
         if !self.name.is_empty() {
-            envelope = envelope.add_assertion(known_values::HAS_NAME, self.name);
+            envelope = envelope.add_assertion(known_values::NAME, self.name);
         }
 
         envelope = self.endpoints
@@ -240,7 +240,7 @@ impl TryFrom<&Envelope> for Key {
         let public_key_base = PublicKeyBase::try_from(envelope.subject().try_leaf()?)?;
         let private_key_base = Key::extract_optional_private_key(envelope)?;
 
-        let name = envelope.extract_object_for_predicate_with_default(HAS_NAME, String::new())?;
+        let name = envelope.extract_object_for_predicate_with_default(NAME, String::new())?;
 
         let mut endpoints = HashSet::new();
         for assertion in envelope.assertions_with_predicate(ENDPOINT) {
@@ -301,7 +301,7 @@ mod tests {
             'allow': 'All'
             'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
             'endpoint': URI(https://resolver.example.com)
-            'hasName': "Alice's key"
+            'name': "Alice's key"
         ]
         "#}.trim());
     }

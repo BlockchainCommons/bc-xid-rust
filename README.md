@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, */zid/*) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.1.2"
+bc-xid = "0.2.0"
 ```
 
 ## Specification

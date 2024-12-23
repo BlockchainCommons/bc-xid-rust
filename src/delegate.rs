@@ -1,9 +1,8 @@
-use std::collections::HashSet;
-
+use bc_components::{Reference, ReferenceProvider};
 use bc_envelope::prelude::*;
 use anyhow::{ Error, Result };
 
-use crate::{ HasPermissions, Privilege };
+use crate::HasPermissions;
 
 use super::{ Shared, XIDDocument, Permissions };
 
@@ -48,42 +47,6 @@ impl HasPermissions for Delegate {
     fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
     }
-
-    fn allow(&self) -> &HashSet<Privilege> {
-        self.permissions.allow()
-    }
-
-    fn deny(&self) -> &HashSet<Privilege> {
-        self.permissions.deny()
-    }
-
-    fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
-        self.permissions.allow_mut()
-    }
-
-    fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
-        self.permissions.deny_mut()
-    }
-
-    fn add_allow(&mut self, privilege: Privilege) {
-        self.permissions.add_allow(privilege);
-    }
-
-    fn add_deny(&mut self, privilege: Privilege) {
-        self.permissions.add_deny(privilege);
-    }
-
-    fn remove_allow(&mut self, privilege: &Privilege) {
-        self.permissions.remove_allow(privilege);
-    }
-
-    fn remove_deny(&mut self, privilege: &Privilege) {
-        self.permissions.remove_deny(privilege);
-    }
-
-    fn clear_all_permissions(&mut self) {
-        self.permissions.clear_all_permissions();
-    }
 }
 
 impl EnvelopeEncodable for Delegate {
@@ -116,6 +79,12 @@ impl TryFrom<Envelope> for Delegate {
     }
 }
 
+impl ReferenceProvider for Delegate {
+    fn reference(&self) -> Reference {
+        self.controller.read().xid().reference()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,7 +104,7 @@ mod tests {
         let envelope = alice_xid_document.clone().into_envelope();
         let expected = (indoc! {r#"
         XID(71274df1) [
-            'key': PublicKeyBase [
+            'key': PublicKeyBase(eb9b1cae) [
                 'allow': 'All'
             ]
         ]
@@ -149,7 +118,7 @@ mod tests {
         let envelope = bob_xid_document.clone().into_envelope();
         let expected = (indoc! {r#"
         XID(7c30cafe) [
-            'key': PublicKeyBase [
+            'key': PublicKeyBase(b8164d99) [
                 'allow': 'All'
             ]
         ]
@@ -188,7 +157,7 @@ mod tests {
                 'allow': 'Encrypt'
                 'allow': 'Sign'
             ]
-            'key': PublicKeyBase [
+            'key': PublicKeyBase(eb9b1cae) [
                 'allow': 'All'
             ]
         ]
@@ -207,7 +176,7 @@ mod tests {
         let expected = (indoc! {r#"
         {
             XID(7c30cafe) [
-                'key': PublicKeyBase [
+                'key': PublicKeyBase(b8164d99) [
                     'allow': 'All'
                 ]
             ]
@@ -226,7 +195,7 @@ mod tests {
         XID(71274df1) [
             'delegate': {
                 XID(7c30cafe) [
-                    'key': PublicKeyBase [
+                    'key': PublicKeyBase(b8164d99) [
                         'allow': 'All'
                     ]
                 ]
@@ -234,7 +203,7 @@ mod tests {
                 'allow': 'Encrypt'
                 'allow': 'Sign'
             ]
-            'key': PublicKeyBase [
+            'key': PublicKeyBase(eb9b1cae) [
                 'allow': 'All'
             ]
         ]

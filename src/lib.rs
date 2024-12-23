@@ -42,8 +42,14 @@ pub use permissions::*;
 mod key;
 pub use key::*;
 
+mod service;
+pub use service::*;
+
 mod delegate;
 pub use delegate::*;
+
+mod name;
+pub use name::*;
 
 #[cfg(test)]
     mod tests {

@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 use anyhow::Result;
 
-use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Salt, SigningPublicKey, Verifier, URI };
+use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
 use known_values::{ENDPOINT, PRIVATE_KEY, NAME};
 
-use crate::{HasPermissions, Privilege};
+use crate::{HasName, HasPermissions, Privilege};
 
 use super::Permissions;
 
@@ -95,14 +95,6 @@ impl Key {
         self.public_key_base.agreement_public_key()
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn set_name(&mut self, name: impl Into<String>) {
-        self.name = name.into();
-    }
-
     pub fn endpoints(&self) -> &HashSet<URI> {
         &self.endpoints
     }
@@ -128,6 +120,16 @@ impl Key {
     }
 }
 
+impl HasName for Key {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_name(&mut self, name: impl Into<String>) {
+        self.name = name.into();
+    }
+}
+
 impl HasPermissions for Key {
     fn permissions(&self) -> &Permissions {
         &self.permissions
@@ -135,42 +137,6 @@ impl HasPermissions for Key {
 
     fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
-    }
-
-    fn allow(&self) -> &HashSet<Privilege> {
-        self.permissions.allow()
-    }
-
-    fn deny(&self) -> &HashSet<Privilege> {
-        self.permissions.deny()
-    }
-
-    fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
-        self.permissions.allow_mut()
-    }
-
-    fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
-        self.permissions.deny_mut()
-    }
-
-    fn add_allow(&mut self, privilege: Privilege) {
-        self.permissions.add_allow(privilege);
-    }
-
-    fn add_deny(&mut self, privilege: Privilege) {
-        self.permissions.add_deny(privilege);
-    }
-
-    fn remove_allow(&mut self, privilege: &Privilege) {
-        self.permissions.remove_allow(privilege);
-    }
-
-    fn remove_deny(&mut self, privilege: &Privilege) {
-        self.permissions.remove_deny(privilege);
-    }
-
-    fn clear_all_permissions(&mut self) {
-        self.permissions.clear_all_permissions();
     }
 }
 
@@ -215,9 +181,7 @@ impl Key {
                 }
             }
 
-        if !self.name.is_empty() {
-            envelope = envelope.add_assertion(known_values::NAME, self.name);
-        }
+        envelope = envelope.add_nonempty_string_assertion(known_values::NAME, self.name);
 
         envelope = self.endpoints
             .into_iter()
@@ -266,6 +230,12 @@ impl TryFrom<Envelope> for Key {
     }
 }
 
+impl ReferenceProvider for &Key {
+    fn reference(&self) -> Reference {
+        self.public_key_base.reference()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,7 +267,7 @@ mod tests {
 
         assert_eq!(envelope.format(),
         indoc! {r#"
-        PublicKeyBase [
+        PublicKeyBase(eb9b1cae) [
             'allow': 'All'
             'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
             'endpoint': URI(https://resolver.example.com)
@@ -337,7 +307,7 @@ mod tests {
 
         assert_eq!(envelope_omitting_private_key.format(),
         indoc! {r#"
-            PublicKeyBase [
+            PublicKeyBase(eb9b1cae) [
                 'allow': 'All'
             ]
         "#}.trim());
@@ -361,7 +331,7 @@ mod tests {
 
         assert_eq!(envelope_including_private_key.format(),
         indoc! {r#"
-            PublicKeyBase [
+            PublicKeyBase(eb9b1cae) [
                 {
                     'privateKey': PrivateKeyBase
                 } [
@@ -388,7 +358,7 @@ mod tests {
 
         assert_eq!(envelope_eliding_private_key.format(),
         indoc! {r#"
-            PublicKeyBase [
+            PublicKeyBase(eb9b1cae) [
                 'allow': 'All'
                 ELIDED
             ]

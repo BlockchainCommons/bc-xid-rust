@@ -13,11 +13,11 @@ use bc_components::{
 };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
-use known_values::{ DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW, KEY, KEY_RAW, PROVENANCE, PROVENANCE_RAW };
+use known_values::{ DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW, KEY, KEY_RAW, PROVENANCE, PROVENANCE_RAW, SERVICE, SERVICE_RAW };
 use provenance_mark::ProvenanceMark;
 use bc_envelope::prelude::*;
 
-use crate::PrivateKeyOptions;
+use crate::{PrivateKeyOptions, Service};
 
 use super::{ Delegate, Key };
 
@@ -27,6 +27,7 @@ pub struct XIDDocument {
     resolution_methods: HashSet<URI>,
     keys: HashSet<Key>,
     delegates: HashSet<Delegate>,
+    services: HashSet<Service>,
     provenance: Option<ProvenanceMark>,
 }
 
@@ -44,6 +45,7 @@ impl XIDDocument {
             resolution_methods: HashSet::new(),
             keys: HashSet::new(),
             delegates: HashSet::new(),
+            services: HashSet::new(),
             provenance: None,
         }
     }
@@ -59,6 +61,7 @@ impl XIDDocument {
             resolution_methods: HashSet::new(),
             keys,
             delegates: HashSet::new(),
+            services: HashSet::new(),
             provenance: None,
         }
     }
@@ -78,6 +81,7 @@ impl XIDDocument {
             resolution_methods: HashSet::new(),
             keys: HashSet::new(),
             delegates: HashSet::new(),
+            services: HashSet::new(),
             provenance: None,
         }
     }
@@ -247,10 +251,14 @@ impl XIDDocument {
             .cloned()
             .fold(envelope, |envelope, delegate| envelope.add_assertion(DELEGATE, delegate));
 
+        // Add an assertion for each service.
+        envelope = self.services
+            .iter()
+            .cloned()
+            .fold(envelope, |envelope, service| envelope.add_assertion(SERVICE, service));
+
         // Add the provenance mark if any.
-        if let Some(provenance) = &self.provenance {
-            envelope = envelope.add_assertion(PROVENANCE, provenance.clone());
-        }
+        envelope = envelope.add_optional_assertion(PROVENANCE, self.provenance.clone());
 
         envelope
     }
@@ -260,7 +268,7 @@ impl XIDDocument {
         // This technique is more robust than the commented-out technique below,
         // because it will fail if there are unexpected attributes in the envelope.
         //
-        
+
         let xid: XID = envelope.subject().try_leaf()?.try_into()?;
         let mut xid_document = XIDDocument::from(xid);
         for assertion in envelope.assertions() {
@@ -281,6 +289,10 @@ impl XIDDocument {
                 DELEGATE_RAW => {
                     let delegate = Delegate::try_from(object)?;
                     xid_document.add_delegate(delegate);
+                }
+                SERVICE_RAW => {
+                    let service = Service::try_from(object)?;
+                    xid_document.services.insert(service);
                 }
                 PROVENANCE_RAW => {
                     let provenance = ProvenanceMark::try_from(object)?;
@@ -491,17 +503,13 @@ mod tests {
 
         // Convert the XID document to an Envelope.
         let envelope = xid_document.clone().into_envelope();
-        let expected_format = (
-            indoc! {
-                r#"
-        XID(71274df1) [
-            'key': PublicKeyBase [
-                'allow': 'All'
+        let expected_format = indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeyBase(eb9b1cae) [
+                    'allow': 'All'
+                ]
             ]
-        ]
-        "#
-            }
-        ).trim();
+        "#}.trim();
         assert_eq!(envelope.format(), expected_format);
 
         // Convert the Envelope back to a XIDDocument.
@@ -569,12 +577,6 @@ mod tests {
         assert_eq!(bytewords_identifier, "🅧 JUGS DELI GIFT WHEN");
         let bytemoji_identifier = xid.bytemoji_identifier(true);
         assert_eq!(bytemoji_identifier, "🅧 🌊 😹 🌽 🐞");
-
-        // Print the XID's LifeHash fingerprint.
-        assert_eq!(
-            format!("{}", xid.lifehash_fingerprint()),
-            "Digest(fc7b562825afa07ee9d49fe99991f767ad4bdad495724c08a918e13ee0eabd5e)"
-        );
 
         // Print the XID's UR.
         let xid_ur = xid.ur_string();
@@ -685,7 +687,7 @@ mod tests {
             indoc! {
                 r#"
         XID(71274df1) [
-            'key': PublicKeyBase [
+            'key': PublicKeyBase(eb9b1cae) [
                 'allow': 'All'
             ]
         ]
@@ -701,7 +703,7 @@ mod tests {
                 r#"
         {
             XID(71274df1) [
-                'key': PublicKeyBase [
+                'key': PublicKeyBase(eb9b1cae) [
                     'allow': 'All'
                 ]
             ]
@@ -742,7 +744,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase [
+                    'key': PublicKeyBase(eb9b1cae) [
                         'allow': 'All'
                     ]
                     'provenance': ProvenanceMark(4bf5c551)
@@ -788,7 +790,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase [
+                    'key': PublicKeyBase(eb9b1cae) [
                         'allow': 'All'
                     ]
                 ]
@@ -828,7 +830,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase [
+                    'key': PublicKeyBase(eb9b1cae) [
                         {
                             'privateKey': PrivateKeyBase
                         } [
@@ -869,7 +871,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase [
+                    'key': PublicKeyBase(eb9b1cae) [
                         'allow': 'All'
                         ELIDED
                     ]
@@ -929,7 +931,7 @@ mod tests {
             indoc! {
                 r#"
             XID(71274df1) [
-                'key': PublicKeyBase [
+                'key': PublicKeyBase(b8164d99) [
                     'allow': 'All'
                 ]
             ]

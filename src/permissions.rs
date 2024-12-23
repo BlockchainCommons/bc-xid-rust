@@ -15,15 +15,43 @@ pub struct Permissions {
 pub trait HasPermissions {
     fn permissions(&self) -> &Permissions;
     fn permissions_mut(&mut self) -> &mut Permissions;
-    fn allow(&self) -> &HashSet<Privilege>;
-    fn deny(&self) -> &HashSet<Privilege>;
-    fn allow_mut(&mut self) -> &mut HashSet<Privilege>;
-    fn deny_mut(&mut self) -> &mut HashSet<Privilege>;
-    fn add_allow(&mut self, privilege: Privilege);
-    fn add_deny(&mut self, privilege: Privilege);
-    fn remove_allow(&mut self, privilege: &Privilege);
-    fn remove_deny(&mut self, privilege: &Privilege);
-    fn clear_all_permissions(&mut self);
+
+    fn allow(&self) -> &HashSet<Privilege> {
+        &self.permissions().allow
+    }
+
+    fn deny(&self) -> &HashSet<Privilege> {
+        &self.permissions().deny
+    }
+
+    fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
+        &mut self.permissions_mut().allow
+    }
+
+    fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
+        &mut self.permissions_mut().deny
+    }
+
+    fn add_allow(&mut self, privilege: Privilege) {
+        self.allow_mut().insert(privilege);
+    }
+
+    fn add_deny(&mut self, privilege: Privilege) {
+        self.deny_mut().insert(privilege);
+    }
+
+    fn remove_allow(&mut self, privilege: &Privilege) {
+        self.allow_mut().remove(privilege);
+    }
+
+    fn remove_deny(&mut self, privilege: &Privilege) {
+        self.deny_mut().remove(privilege);
+    }
+
+    fn clear_all_permissions(&mut self) {
+        self.permissions_mut().allow.clear();
+        self.permissions_mut().deny.clear();
+    }
 }
 
 impl Permissions {
@@ -64,43 +92,6 @@ impl HasPermissions for Permissions {
 
     fn permissions_mut(&mut self) -> &mut Permissions {
         self
-    }
-
-    fn allow(&self) -> &HashSet<Privilege> {
-        &self.allow
-    }
-
-    fn deny(&self) -> &HashSet<Privilege> {
-        &self.deny
-    }
-
-    fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
-        &mut self.allow
-    }
-
-    fn deny_mut(&mut self) -> &mut HashSet<Privilege> {
-        &mut self.deny
-    }
-
-    fn add_allow(&mut self, privilege: Privilege) {
-        self.allow.insert(privilege);
-    }
-
-    fn add_deny(&mut self, privilege: Privilege) {
-        self.deny.insert(privilege);
-    }
-
-    fn remove_allow(&mut self, privilege: &Privilege) {
-        self.allow.remove(privilege);
-    }
-
-    fn remove_deny(&mut self, privilege: &Privilege) {
-        self.deny.remove(privilege);
-    }
-
-    fn clear_all_permissions(&mut self) {
-        self.allow.clear();
-        self.deny.clear();
     }
 }
 

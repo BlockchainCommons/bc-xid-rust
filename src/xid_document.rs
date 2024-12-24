@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result, anyhow };
 use bc_components::{
-    tags::TAG_XID, AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Reference, ReferenceProvider, Signer, SigningPublicKey, URI, XID
+    tags::TAG_XID, AgreementPublicKey, PrivateKeyBase, PublicKeyBase, PublicKeyBaseProvider, Reference, ReferenceProvider, Signer, SigningPublicKey, XIDProvider, URI, XID
 };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
@@ -44,7 +44,7 @@ impl XIDDocument {
     }
 
     pub fn new_with_private_key(inception_private_key: PrivateKeyBase) -> Self {
-        let inception_public_key = inception_private_key.schnorr_public_key_base();
+        let inception_public_key = inception_private_key.public_key_base();
         let xid = XID::new(inception_public_key.signing_public_key());
         let inception_key = Key::new_with_private_key(inception_private_key);
         let mut keys = HashSet::new();
@@ -79,10 +79,6 @@ impl XIDDocument {
         }
     }
 
-    pub fn xid(&self) -> &XID {
-        &self.xid
-    }
-
     pub fn resolution_methods(&self) -> &HashSet<URI> {
         &self.resolution_methods
     }
@@ -95,8 +91,8 @@ impl XIDDocument {
         self.resolution_methods.insert(method);
     }
 
-    pub fn remove_resolution_method(&mut self, method: &URI) -> Option<URI> {
-        self.resolution_methods.take(method)
+    pub fn remove_resolution_method(&mut self, method: impl AsRef<URI>) -> Option<URI> {
+        self.resolution_methods.take(method.as_ref())
     }
 
     pub fn keys(&self) -> &HashSet<Key> {
@@ -115,30 +111,37 @@ impl XIDDocument {
         Ok(())
     }
 
-    pub fn find_key_by_public_key_base(&self, key: &PublicKeyBase) -> Option<&Key> {
-        self.keys.iter().find(|k| k.public_key_base() == key)
+    pub fn find_key_by_public_key_base(&self, key: &dyn PublicKeyBaseProvider) -> Option<&Key> {
+        let key = key.public_key_base();
+        self.keys.iter().find(|k| k.public_key_base() == &key)
     }
 
     pub fn find_key_by_reference(&self, reference: &Reference) -> Option<&Key> {
         self.keys.iter().find(|k| k.public_key_base().reference() == *reference)
     }
 
-    pub fn remove_key(&mut self, key: &Key) -> Option<Key> {
-        let public_key_base = key.public_key_base();
-        if let Some(key) = self.find_key_by_public_key_base(public_key_base).cloned() {
+    pub fn take_key(&mut self, key: &dyn PublicKeyBaseProvider) -> Option<Key> {
+        if let Some(key) = self.find_key_by_public_key_base(key).cloned() {
             self.keys.take(&key)
         } else {
             None
         }
     }
 
-    pub fn set_name_for_key(&mut self, key: &PublicKeyBase, name: impl Into<String>) -> Result<()> {
-        let mut key = self
-            .find_key_by_public_key_base(key)
-            .cloned()
-            .ok_or_else(|| anyhow!("Key not found"))?;
+    pub fn remove_key(&mut self, key: &dyn PublicKeyBaseProvider) -> Result<()> {
+        if self.services_reference_key(key) {
+            bail!("Key is referenced by a service");
+        }
+        if self.take_key(key).is_none() {
+            bail!("Key not found");
+        }
+        Ok(())
+    }
 
-        self.remove_key(&key);
+    pub fn set_name_for_key(&mut self, key: &dyn PublicKeyBaseProvider, name: impl Into<String>) -> Result<()> {
+        let mut key = self
+            .take_key(key)
+            .ok_or_else(|| anyhow!("Key not found"))?;
         key.set_name(name);
         self.add_key(key)
     }
@@ -209,7 +212,7 @@ impl XIDDocument {
     }
 
     pub fn add_delegate(&mut self, delegate: Delegate) -> Result<()> {
-        if self.find_delegate_by_xid(delegate.controller().read().xid()).is_some() {
+        if self.find_delegate_by_xid(&delegate).is_some() {
             bail!("Delegate already exists");
         }
         self.delegates.insert(delegate);
@@ -217,24 +220,34 @@ impl XIDDocument {
         Ok(())
     }
 
-    pub fn find_delegate_by_xid(&self, xid: &XID) -> Option<&Delegate> {
-        self.delegates.iter().find(|d| d.controller().read().xid() == xid)
+    pub fn find_delegate_by_xid(&self, xid_provider: &dyn XIDProvider) -> Option<&Delegate> {
+        self.delegates.iter().find(|d| d.controller().read().xid() == xid_provider.xid())
     }
 
     pub fn find_delegate_by_reference(&self, reference: &Reference) -> Option<&Delegate> {
         self.delegates.iter().find(|d| d.controller().read().xid().reference() == *reference)
     }
 
-    pub fn remove_delegate(&mut self, xid: &XID) -> Option<Delegate> {
-        if let Some(delegate) = self.find_delegate_by_xid(xid).cloned() {
+    pub fn take_delegate(&mut self, xid_provider: &dyn XIDProvider) -> Option<Delegate> {
+        if let Some(delegate) = self.find_delegate_by_xid(xid_provider).cloned() {
             self.delegates.take(&delegate)
         } else {
             None
         }
     }
 
-    pub fn find_service_by_uri(&self, uri: &URI) -> Option<&Service> {
-        self.services.iter().find(|s| s.uri() == uri)
+    pub fn remove_delegate(&mut self, xid_provider: &dyn XIDProvider) -> Result<()> {
+        if self.services_reference_delegate(xid_provider) {
+            bail!("Delegate is referenced by a service");
+        }
+        if self.take_delegate(xid_provider).is_none() {
+            bail!("Delegate not found");
+        }
+        Ok(())
+    }
+
+    pub fn find_service_by_uri(&self, uri: impl AsRef<URI>) -> Option<&Service> {
+        self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
     pub fn services(&self) -> &HashSet<Service> {
@@ -249,19 +262,50 @@ impl XIDDocument {
         Ok(())
     }
 
-    pub fn check_service_references(&self) -> Result<()> {
+    pub fn take_service(&mut self, uri: impl AsRef<URI>) -> Option<Service> {
+        if let Some(service) = self.find_service_by_uri(uri).cloned() {
+            self.services.take(&service)
+        } else {
+            None
+        }
+    }
+
+    pub fn check_all_service_references(&self) -> Result<()> {
         for service in &self.services {
-            for key_reference in service.key_references() {
-                if self.find_key_by_reference(key_reference).is_none() {
-                    bail!("Unknown key reference: {}", key_reference);
-                }
-            }
-            for delegate_reference in service.delegate_references() {
-                if self.find_delegate_by_reference(delegate_reference).is_none() {
-                    bail!("Unknown delegate reference: {}", delegate_reference);
-                }
+            self.check_service_references(service)?;
+        }
+        Ok(())
+    }
+
+    pub fn check_service_references(&self, service: &Service) -> Result<()> {
+        for key_reference in service.key_references() {
+            if self.find_key_by_reference(key_reference).is_none() {
+                bail!("Unknown key reference: {}", key_reference);
             }
         }
+        for delegate_reference in service.delegate_references() {
+            if self.find_delegate_by_reference(delegate_reference).is_none() {
+                bail!("Unknown delegate reference: {}", delegate_reference);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn services_reference_key(&self, key: &dyn PublicKeyBaseProvider) -> bool {
+        let key_reference = key.public_key_base().reference();
+        self.services.iter().any(|service| service.key_references().contains(&key_reference))
+    }
+
+    pub fn services_reference_delegate(&self, xid_provider: &dyn XIDProvider) -> bool {
+        let delegate_reference = xid_provider.xid().reference();
+        self.services.iter().any(|service| service.delegate_references().contains(&delegate_reference))
+    }
+
+    pub fn remove_service(&mut self, uri: impl AsRef<URI>) -> Result<()> {
+        if !self.services.iter().any(|s| s.uri() == uri.as_ref()) {
+            bail!("Service not found");
+        }
+        self.services.retain(|s| s.uri() != uri.as_ref());
         Ok(())
     }
 
@@ -354,7 +398,7 @@ impl XIDDocument {
             }
         }
 
-        xid_document.check_service_references()?;
+        xid_document.check_all_service_references()?;
 
         Ok(xid_document)
 
@@ -424,6 +468,12 @@ impl XIDDocument {
         } else {
             bail!("Invalid XID")
         }
+    }
+}
+
+impl XIDProvider for XIDDocument {
+    fn xid(&self) -> XID {
+        self.xid.clone()
     }
 }
 
@@ -542,7 +592,7 @@ mod tests {
     use bc_envelope::prelude::*;
     use bc_rand::make_fake_random_number_generator;
     use indoc::indoc;
-    use bc_components::{ tags, PrivateKeyBase, URI, XID };
+    use bc_components::{ tags, PrivateKeyBase, PublicKeyBaseProvider, XIDProvider, URI, XID };
     use provenance_mark::{ ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed };
 
     use crate::{ Delegate, HasName, HasPermissions, Key, PrivateKeyOptions, Privilege, Service, XIDDocument };
@@ -552,7 +602,7 @@ mod tests {
         // Create a XID document.
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base = private_key_base.schnorr_public_key_base();
+        let public_key_base = private_key_base.public_key_base();
         let xid_document = XIDDocument::new(public_key_base);
 
         // Extract the XID from the XID document.
@@ -642,7 +692,7 @@ mod tests {
             "ur:xid/hdcxjsdigtwneocmnybadpdlzobysbstmekteypspeotcfldynlpsfolsbintyjkrhfnvsbyrdfw"
         );
         let xid2 = XID::from_ur_string(&xid_ur).unwrap();
-        assert_eq!(xid, &xid2);
+        assert_eq!(xid, xid2);
     }
 
     #[test]
@@ -697,7 +747,7 @@ mod tests {
         // Create a XID document.
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base = private_key_base.schnorr_public_key_base();
+        let public_key_base = private_key_base.public_key_base();
         let mut xid_document = XIDDocument::new_empty(&public_key_base);
 
         // Add resolution methods.
@@ -734,7 +784,7 @@ mod tests {
         // Generate the inception key.
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
-        let public_inception_key = private_inception_key.schnorr_public_key_base();
+        let public_inception_key = private_inception_key.public_key_base();
 
         // Create a XIDDocument for the inception key.
         let xid_document = XIDDocument::new(public_inception_key);
@@ -784,7 +834,7 @@ mod tests {
 
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
-        let inception_key = private_inception_key.schnorr_public_key_base();
+        let inception_key = private_inception_key.public_key_base();
 
         let genesis_seed = ProvenanceSeed::new_using(&mut rng);
 
@@ -824,7 +874,7 @@ mod tests {
     fn with_private_key() {
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
-        let public_inception_key = private_inception_key.schnorr_public_key_base();
+        let public_inception_key = private_inception_key.public_key_base();
 
         //
         // A `XIDDocument` can be created from a private key, in which case it
@@ -978,7 +1028,7 @@ mod tests {
 
         // Create a new key.
         let private_key_base_2 = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base_2 = private_key_base_2.schnorr_public_key_base();
+        let public_key_base_2 = private_key_base_2.public_key_base();
 
         // Add the new key to the empty XID document.
         let key_2 = Key::new_allow_all(public_key_base_2);
@@ -1015,12 +1065,12 @@ mod tests {
         let mut rng = make_fake_random_number_generator();
 
         let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let alice_public_key_base = alice_private_key_base.schnorr_public_key_base();
+        let alice_public_key_base = alice_private_key_base.public_key_base();
         let mut alice_xid_document = XIDDocument::new(&alice_public_key_base);
         alice_xid_document.set_name_for_key(&alice_public_key_base, "Alice").unwrap();
 
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_public_key_base = bob_private_key_base.schnorr_public_key_base();
+        let bob_public_key_base = bob_private_key_base.public_key_base();
         let mut bob_xid_document = XIDDocument::new(&bob_public_key_base);
         bob_xid_document.set_name_for_key(&bob_public_key_base, "Bob").unwrap();
         let mut bob_delegate = Delegate::new(&bob_xid_document);
@@ -1029,7 +1079,8 @@ mod tests {
 
         alice_xid_document.add_delegate(bob_delegate).unwrap();
 
-        let mut service = Service::new(URI::from("https://example.com"));
+        let service_uri = URI::from("https://example.com");
+        let mut service = Service::new(&service_uri);
 
         service.add_key(&alice_public_key_base).unwrap();
         service.add_delegate(&bob_xid_document).unwrap();
@@ -1041,7 +1092,6 @@ mod tests {
         alice_xid_document.add_service(service).unwrap();
 
         let envelope = alice_xid_document.clone().into_envelope();
-        println!("{}", envelope.format());
         let expected = indoc! {r#"
             XID(71274df1) [
                 'delegate': {
@@ -1073,5 +1123,15 @@ mod tests {
 
         let alice_xid_document_2 = XIDDocument::try_from(envelope).unwrap();
         assert_eq!(alice_xid_document, alice_xid_document_2);
+
+        // Can't remove the key or delegate while a service references them.
+        assert!(alice_xid_document.remove_key(&alice_public_key_base).is_err());
+        assert!(alice_xid_document.remove_delegate(&bob_xid_document).is_err());
+
+        // Remove the service.
+        alice_xid_document.remove_service(&service_uri).unwrap();
+        // Now the key and delegate can be removed.
+        alice_xid_document.remove_key(&alice_public_key_base).unwrap();
+        alice_xid_document.remove_delegate(&bob_xid_document).unwrap();
     }
 }

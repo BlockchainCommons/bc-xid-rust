@@ -23,9 +23,9 @@ impl std::hash::Hash for Service {
 }
 
 impl Service {
-    pub fn new(uri: URI) -> Self {
+    pub fn new(uri: impl AsRef<URI>) -> Self {
         Self {
-            uri,
+            uri: uri.as_ref().clone(),
             key_references: HashSet::new(),
             delegate_references: HashSet::new(),
             permissions: Permissions::new(),
@@ -195,7 +195,7 @@ impl TryFrom<&Envelope> for Service {
 
 #[cfg(test)]
 mod tests {
-    use bc_components::URI;
+    use bc_components::{PublicKeyBaseProvider, URI};
     use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
     use bc_rand::make_fake_random_number_generator;
 
@@ -210,10 +210,10 @@ mod tests {
         let mut rng = make_fake_random_number_generator();
 
         let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let alice_public_key_base = alice_private_key_base.schnorr_public_key_base();
+        let alice_public_key_base = alice_private_key_base.public_key_base();
 
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_public_key_base = bob_private_key_base.schnorr_public_key_base();
+        let bob_public_key_base = bob_private_key_base.public_key_base();
         let bob_xid_document = XIDDocument::new(bob_public_key_base);
 
         let mut service = Service::new(URI::from("https://example.com"));

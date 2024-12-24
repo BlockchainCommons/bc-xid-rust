@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use anyhow::Result;
 
-use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
+use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, PublicKeyBaseProvider, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
 use known_values::{ENDPOINT, PRIVATE_KEY, NAME};
 
@@ -21,6 +21,12 @@ pub struct Key {
 impl Verifier for Key {
     fn verify(&self, signature: &bc_components::Signature, message: &dyn AsRef<[u8]>) -> bool {
         self.public_key_base.verify(signature, message)
+    }
+}
+
+impl PublicKeyBaseProvider for Key {
+    fn public_key_base(&self) -> PublicKeyBase {
+        self.public_key_base.clone()
     }
 }
 
@@ -52,7 +58,7 @@ impl Key {
     }
 
     pub fn new_with_private_key(private_key_base: PrivateKeyBase) -> Self {
-        let public_key_base = private_key_base.schnorr_public_key_base();
+        let public_key_base = private_key_base.public_key_base();
         let salt = Salt::new_for_size(private_key_base.to_cbor_data().len());
         Self {
             public_key_base,
@@ -227,7 +233,7 @@ impl ReferenceProvider for &Key {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bc_components::PrivateKeyBase;
+    use bc_components::{PrivateKeyBase, PublicKeyBaseProvider};
     use bc_rand::make_fake_random_number_generator;
     use crate::Privilege;
     use indoc::indoc;
@@ -238,7 +244,7 @@ mod tests {
 
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base = private_key_base.schnorr_public_key_base();
+        let public_key_base = private_key_base.public_key_base();
 
         let resolver1 = URI::new("https://resolver.example.com").unwrap();
         let resolver2 = URI::new("btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33").unwrap();
@@ -283,7 +289,7 @@ mod tests {
         // explicit.
         //
 
-        let key_omitting_private_key = Key::new_allow_all(private_key_base.schnorr_public_key_base());
+        let key_omitting_private_key = Key::new_allow_all(private_key_base.public_key_base());
 
         //
         // When converting to an `Envelope`, the default is to omit the private

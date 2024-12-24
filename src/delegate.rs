@@ -1,4 +1,4 @@
-use bc_components::{Reference, ReferenceProvider};
+use bc_components::{Reference, ReferenceProvider, XIDProvider, XID};
 use bc_envelope::prelude::*;
 use anyhow::{ Error, Result };
 
@@ -71,6 +71,12 @@ impl TryFrom<Envelope> for Delegate {
     }
 }
 
+impl XIDProvider for Delegate {
+    fn xid(&self) -> XID {
+        self.controller.read().xid()
+    }
+}
+
 impl ReferenceProvider for Delegate {
     fn reference(&self) -> Reference {
         self.controller.read().xid().reference()
@@ -80,7 +86,7 @@ impl ReferenceProvider for Delegate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bc_components::PrivateKeyBase;
+    use bc_components::{PrivateKeyBase, PublicKeyBaseProvider};
     use bc_rand::make_fake_random_number_generator;
     use crate::Privilege;
     use indoc::indoc;
@@ -105,7 +111,7 @@ mod tests {
 
         // Create Bob's XIDDocument
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_public_key_base = bob_private_key_base.schnorr_public_key_base();
+        let bob_public_key_base = bob_private_key_base.public_key_base();
         let bob_xid_document = XIDDocument::from(bob_public_key_base);
 
         let envelope = bob_xid_document.clone().into_envelope();

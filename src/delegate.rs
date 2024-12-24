@@ -6,19 +6,11 @@ use crate::HasPermissions;
 
 use super::{ Shared, XIDDocument, Permissions };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Delegate {
     controller: Shared<XIDDocument>,
     permissions: Permissions,
 }
-
-impl PartialEq for Delegate {
-    fn eq(&self, other: &Self) -> bool {
-        self.controller.read().xid() == other.controller.read().xid()
-    }
-}
-
-impl Eq for Delegate {}
 
 impl std::hash::Hash for Delegate {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -27,9 +19,9 @@ impl std::hash::Hash for Delegate {
 }
 
 impl Delegate {
-    pub fn new(controller: XIDDocument) -> Self {
+    pub fn new(controller: impl AsRef<XIDDocument>) -> Self {
         Self {
-            controller: Shared::new(controller),
+            controller: Shared::new(controller.as_ref().clone()),
             permissions: Permissions::new(),
         }
     }
@@ -113,7 +105,8 @@ mod tests {
 
         // Create Bob's XIDDocument
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_xid_document = XIDDocument::from(&bob_private_key_base);
+        let bob_public_key_base = bob_private_key_base.schnorr_public_key_base();
+        let bob_xid_document = XIDDocument::from(bob_public_key_base);
 
         let envelope = bob_xid_document.clone().into_envelope();
         let expected = (indoc! {r#"
@@ -147,7 +140,7 @@ mod tests {
         assert_eq!(envelope.format(), expected);
 
         let mut alice_xid_document_with_unresolved_delegate = alice_xid_document.clone();
-        alice_xid_document_with_unresolved_delegate.add_delegate(bob_unresolved_delegate);
+        alice_xid_document_with_unresolved_delegate.add_delegate(bob_unresolved_delegate).unwrap();
         let envelope = alice_xid_document_with_unresolved_delegate.clone().into_envelope();
         let expected = (indoc! {r#"
         XID(71274df1) [
@@ -189,7 +182,7 @@ mod tests {
 
         // Add Bob as a Delegate to Alice's XIDDocument
         let mut alice_xid_document_with_delegate = alice_xid_document.clone();
-        alice_xid_document_with_delegate.add_delegate(bob_delegate);
+        alice_xid_document_with_delegate.add_delegate(bob_delegate).unwrap();
         let envelope = alice_xid_document_with_delegate.clone().into_envelope();
         let expected = (indoc! {r#"
         XID(71274df1) [

@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
 use bc_components::{ Reference, ReferenceProvider, URI };
-use bc_envelope::{ extension::{ ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY, KEY_RAW, NAME, NAME_RAW }, Envelope, EnvelopeEncodable };
+use bc_envelope::{ extension::{ ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY, KEY_RAW, NAME, NAME_RAW }, Envelope, EnvelopeEncodable, PublicKeyBase };
 use anyhow::{Error, Result, bail};
 
-use crate::{ Delegate, HasName, HasPermissions, Key, Permissions, Privilege };
+use crate::{ HasName, HasPermissions, Permissions, Privilege, XIDDocument };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
     uri: URI,
     key_references: HashSet<Reference>,
@@ -15,14 +15,6 @@ pub struct Service {
     capability: String,
     name: String,
 }
-
-impl PartialEq for Service {
-    fn eq(&self, other: &Self) -> bool {
-        self.uri == other.uri
-    }
-}
-
-impl Eq for Service {}
 
 impl std::hash::Hash for Service {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -40,15 +32,6 @@ impl Service {
             capability: String::new(),
             name: String::new(),
         }
-    }
-
-    pub fn all_eq(&self, other: &Self) -> bool {
-        self.uri == other.uri
-            && self.key_references == other.key_references
-            && self.delegate_references == other.delegate_references
-            && self.permissions == other.permissions
-            && self.capability == other.capability
-            && self.name == other.name
     }
 
     pub fn uri(&self) -> &URI {
@@ -93,7 +76,7 @@ impl Service {
         Ok(())
     }
 
-    pub fn add_key(&mut self, key: &Key) -> Result<()> {
+    pub fn add_key(&mut self, key: &PublicKeyBase) -> Result<()> {
         self.add_key_reference(key.reference())
     }
 
@@ -115,7 +98,7 @@ impl Service {
         Ok(())
     }
 
-    pub fn add_delegate(&mut self, delegate: &Delegate) -> Result<()> {
+    pub fn add_delegate(&mut self, delegate: &XIDDocument) -> Result<()> {
         self.add_delegate_reference(delegate.reference())
     }
 }
@@ -216,7 +199,7 @@ mod tests {
     use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
     use bc_rand::make_fake_random_number_generator;
 
-    use crate::{Delegate, HasName, HasPermissions, Key, Privilege, XIDDocument};
+    use crate::{HasName, HasPermissions, Privilege, XIDDocument};
 
     use super::Service;
 
@@ -228,20 +211,18 @@ mod tests {
 
         let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
         let alice_public_key_base = alice_private_key_base.schnorr_public_key_base();
-        let alice_key = Key::new(alice_public_key_base);
 
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
         let bob_public_key_base = bob_private_key_base.schnorr_public_key_base();
         let bob_xid_document = XIDDocument::new(bob_public_key_base);
-        let bob_delegate = Delegate::new(bob_xid_document);
 
         let mut service = Service::new(URI::from("https://example.com"));
 
-        service.add_key(&alice_key).unwrap();
-        assert!(service.add_key(&alice_key).is_err());
+        service.add_key(&alice_public_key_base).unwrap();
+        assert!(service.add_key(&alice_public_key_base).is_err());
 
-        service.add_delegate(&bob_delegate).unwrap();
-        assert!(service.add_delegate(&bob_delegate).is_err());
+        service.add_delegate(&bob_xid_document).unwrap();
+        assert!(service.add_delegate(&bob_xid_document).is_err());
 
         service.add_allow(Privilege::Encrypt);
         service.add_allow(Privilege::Sign);
@@ -266,6 +247,6 @@ mod tests {
         assert_eq!(envelope.format(), expected);
 
         let service2 = Service::try_from(&envelope).unwrap();
-        assert!(service.all_eq(&service2));
+        assert_eq!(service, service2);
     }
 }

@@ -1,15 +1,8 @@
 use std::collections::HashSet;
 
-use anyhow::{ bail, Error, Result };
+use anyhow::{ bail, Error, Result, anyhow };
 use bc_components::{
-    tags::TAG_XID,
-    AgreementPublicKey,
-    PrivateKeyBase,
-    PublicKeyBase,
-    Signer,
-    SigningPublicKey,
-    URI,
-    XID,
+    tags::TAG_XID, AgreementPublicKey, PrivateKeyBase, PublicKeyBase, Reference, ReferenceProvider, Signer, SigningPublicKey, URI, XID
 };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
@@ -17,7 +10,7 @@ use known_values::{ DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW
 use provenance_mark::ProvenanceMark;
 use bc_envelope::prelude::*;
 
-use crate::{PrivateKeyOptions, Service};
+use crate::{HasName, PrivateKeyOptions, Service};
 
 use super::{ Delegate, Key };
 
@@ -32,14 +25,14 @@ pub struct XIDDocument {
 }
 
 impl XIDDocument {
-    pub fn new(inception_public_key: PublicKeyBase) -> Self {
+    pub fn new(inception_public_key: impl AsRef<PublicKeyBase>) -> Self {
         let mut doc = Self::new_empty(&inception_public_key);
-        doc.add_key(Key::new_allow_all(inception_public_key)).unwrap();
+        doc.add_key(Key::new_allow_all(&inception_public_key)).unwrap();
         doc
     }
 
-    pub fn new_empty(inception_public_key: &PublicKeyBase) -> Self {
-        let xid = XID::new(inception_public_key.signing_public_key());
+    pub fn new_empty(inception_public_key: impl AsRef<PublicKeyBase>) -> Self {
+        let xid = XID::new(inception_public_key.as_ref().signing_public_key());
         Self {
             xid,
             resolution_methods: HashSet::new(),
@@ -115,7 +108,7 @@ impl XIDDocument {
     }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
-        if self.keys.contains(&key) {
+        if self.find_key_by_public_key_base(key.public_key_base()).is_some() {
             bail!("Key already exists");
         }
         self.keys.insert(key);
@@ -126,6 +119,10 @@ impl XIDDocument {
         self.keys.iter().find(|k| k.public_key_base() == key)
     }
 
+    pub fn find_key_by_reference(&self, reference: &Reference) -> Option<&Key> {
+        self.keys.iter().find(|k| k.public_key_base().reference() == *reference)
+    }
+
     pub fn remove_key(&mut self, key: &Key) -> Option<Key> {
         let public_key_base = key.public_key_base();
         if let Some(key) = self.find_key_by_public_key_base(public_key_base).cloned() {
@@ -133,6 +130,17 @@ impl XIDDocument {
         } else {
             None
         }
+    }
+
+    pub fn set_name_for_key(&mut self, key: &PublicKeyBase, name: impl Into<String>) -> Result<()> {
+        let mut key = self
+            .find_key_by_public_key_base(key)
+            .cloned()
+            .ok_or_else(|| anyhow!("Key not found"))?;
+
+        self.remove_key(&key);
+        key.set_name(name);
+        self.add_key(key)
     }
 
     pub fn is_inception_signing_key(&self, signing_public_key: &SigningPublicKey) -> bool {
@@ -200,20 +208,61 @@ impl XIDDocument {
         &mut self.delegates
     }
 
-    pub fn add_delegate(&mut self, delegate: Delegate) {
+    pub fn add_delegate(&mut self, delegate: Delegate) -> Result<()> {
+        if self.find_delegate_by_xid(delegate.controller().read().xid()).is_some() {
+            bail!("Delegate already exists");
+        }
         self.delegates.insert(delegate);
+
+        Ok(())
     }
 
-    pub fn find_delegate(&self, xid: &XID) -> Option<&Delegate> {
+    pub fn find_delegate_by_xid(&self, xid: &XID) -> Option<&Delegate> {
         self.delegates.iter().find(|d| d.controller().read().xid() == xid)
     }
 
+    pub fn find_delegate_by_reference(&self, reference: &Reference) -> Option<&Delegate> {
+        self.delegates.iter().find(|d| d.controller().read().xid().reference() == *reference)
+    }
+
     pub fn remove_delegate(&mut self, xid: &XID) -> Option<Delegate> {
-        if let Some(delegate) = self.find_delegate(xid).cloned() {
+        if let Some(delegate) = self.find_delegate_by_xid(xid).cloned() {
             self.delegates.take(&delegate)
         } else {
             None
         }
+    }
+
+    pub fn find_service_by_uri(&self, uri: &URI) -> Option<&Service> {
+        self.services.iter().find(|s| s.uri() == uri)
+    }
+
+    pub fn services(&self) -> &HashSet<Service> {
+        &self.services
+    }
+
+    pub fn add_service(&mut self, service: Service) -> Result<()> {
+        if self.find_service_by_uri(service.uri()).is_some() {
+            bail!("Service already exists");
+        }
+        self.services.insert(service);
+        Ok(())
+    }
+
+    pub fn check_service_references(&self) -> Result<()> {
+        for service in &self.services {
+            for key_reference in service.key_references() {
+                if self.find_key_by_reference(key_reference).is_none() {
+                    bail!("Unknown key reference: {}", key_reference);
+                }
+            }
+            for delegate_reference in service.delegate_references() {
+                if self.find_delegate_by_reference(delegate_reference).is_none() {
+                    bail!("Unknown delegate reference: {}", delegate_reference);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn provenance(&self) -> Option<&ProvenanceMark> {
@@ -288,11 +337,11 @@ impl XIDDocument {
                 }
                 DELEGATE_RAW => {
                     let delegate = Delegate::try_from(object)?;
-                    xid_document.add_delegate(delegate);
+                    xid_document.add_delegate(delegate)?;
                 }
                 SERVICE_RAW => {
                     let service = Service::try_from(object)?;
-                    xid_document.services.insert(service);
+                    xid_document.add_service(service)?;
                 }
                 PROVENANCE_RAW => {
                     let provenance = ProvenanceMark::try_from(object)?;
@@ -304,6 +353,8 @@ impl XIDDocument {
                 _ => bail!("Unexpected predicate: {}", predicate),
             }
         }
+
+        xid_document.check_service_references()?;
 
         Ok(xid_document)
 
@@ -373,6 +424,12 @@ impl XIDDocument {
         } else {
             bail!("Invalid XID")
         }
+    }
+}
+
+impl ReferenceProvider for XIDDocument {
+    fn reference(&self) -> Reference {
+        self.xid.reference()
     }
 }
 
@@ -488,7 +545,7 @@ mod tests {
     use bc_components::{ tags, PrivateKeyBase, URI, XID };
     use provenance_mark::{ ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed };
 
-    use crate::{ Key, PrivateKeyOptions, XIDDocument };
+    use crate::{ Delegate, HasName, HasPermissions, Key, PrivateKeyOptions, Privilege, Service, XIDDocument };
 
     #[test]
     fn xid_document() {
@@ -949,5 +1006,72 @@ mod tests {
         // But it does have an encrypter and a verifier.
         assert!(xid_document_2.encryption_key().is_some());
         assert!(xid_document_2.verification_key().is_some());
+    }
+
+    #[test]
+    fn with_service() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+
+        let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let alice_public_key_base = alice_private_key_base.schnorr_public_key_base();
+        let mut alice_xid_document = XIDDocument::new(&alice_public_key_base);
+        alice_xid_document.set_name_for_key(&alice_public_key_base, "Alice").unwrap();
+
+        let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let bob_public_key_base = bob_private_key_base.schnorr_public_key_base();
+        let mut bob_xid_document = XIDDocument::new(&bob_public_key_base);
+        bob_xid_document.set_name_for_key(&bob_public_key_base, "Bob").unwrap();
+        let mut bob_delegate = Delegate::new(&bob_xid_document);
+        bob_delegate.add_allow(Privilege::Sign);
+        bob_delegate.add_allow(Privilege::Encrypt);
+
+        alice_xid_document.add_delegate(bob_delegate).unwrap();
+
+        let mut service = Service::new(URI::from("https://example.com"));
+
+        service.add_key(&alice_public_key_base).unwrap();
+        service.add_delegate(&bob_xid_document).unwrap();
+        service.add_allow(Privilege::Encrypt);
+        service.add_allow(Privilege::Sign);
+        service.add_name("Example Service").unwrap();
+        service.add_capability("com.example.messaging").unwrap();
+
+        alice_xid_document.add_service(service).unwrap();
+
+        let envelope = alice_xid_document.clone().into_envelope();
+        println!("{}", envelope.format());
+        let expected = indoc! {r#"
+            XID(71274df1) [
+                'delegate': {
+                    XID(7c30cafe) [
+                        'key': PublicKeyBase(b8164d99) [
+                            'allow': 'All'
+                            'name': "Bob"
+                        ]
+                    ]
+                } [
+                    'allow': 'Encrypt'
+                    'allow': 'Sign'
+                ]
+                'key': PublicKeyBase(eb9b1cae) [
+                    'allow': 'All'
+                    'name': "Alice"
+                ]
+                'service': URI(https://example.com) [
+                    'allow': 'Encrypt'
+                    'allow': 'Sign'
+                    'capability': "com.example.messaging"
+                    'delegate': Reference(7c30cafe)
+                    'key': Reference(eb9b1cae)
+                    'name': "Example Service"
+                ]
+            ]
+        "#}.trim();
+        assert_eq!(envelope.format(), expected);
+
+        let alice_xid_document_2 = XIDDocument::try_from(envelope).unwrap();
+        assert_eq!(alice_xid_document, alice_xid_document_2);
     }
 }

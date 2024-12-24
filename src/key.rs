@@ -9,7 +9,7 @@ use crate::{HasName, HasPermissions, Privilege};
 
 use super::Permissions;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Key {
     public_key_base: PublicKeyBase,
     private_key_base: Option<(PrivateKeyBase, Salt)>,
@@ -18,23 +18,11 @@ pub struct Key {
     permissions: Permissions,
 }
 
-impl PartialEq for Key {
-    fn eq(&self, other: &Self) -> bool {
-        self.public_key_base == other.public_key_base &&
-        self.private_key_base == other.private_key_base &&
-        self.name == other.name &&
-        self.endpoints == other.endpoints &&
-        self.permissions == other.permissions
-    }
-}
-
 impl Verifier for Key {
     fn verify(&self, signature: &bc_components::Signature, message: &dyn AsRef<[u8]>) -> bool {
         self.public_key_base.verify(signature, message)
     }
 }
-
-impl Eq for Key {}
 
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -43,9 +31,9 @@ impl std::hash::Hash for Key {
 }
 
 impl Key {
-    pub fn new(public_key_base: PublicKeyBase) -> Self {
+    pub fn new(public_key_base: impl AsRef<PublicKeyBase>) -> Self {
         Self {
-            public_key_base,
+            public_key_base: public_key_base.as_ref().clone(),
             private_key_base: None,
             name: String::new(),
             endpoints: HashSet::new(),
@@ -53,9 +41,9 @@ impl Key {
         }
     }
 
-    pub fn new_allow_all(public_key_base: PublicKeyBase) -> Self {
+    pub fn new_allow_all(public_key_base: impl AsRef<PublicKeyBase>) -> Self {
         Self {
-            public_key_base,
+            public_key_base: public_key_base.as_ref().clone(),
             private_key_base: None,
             name: String::new(),
             endpoints: HashSet::new(),

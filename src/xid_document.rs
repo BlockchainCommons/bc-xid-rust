@@ -10,7 +10,7 @@ use known_values::{ DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW
 use provenance_mark::ProvenanceMark;
 use bc_envelope::prelude::*;
 
-use crate::{HasName, PrivateKeyOptions, Service};
+use crate::{HasName, HasPermissions, PrivateKeyOptions, Service};
 
 use super::{ Delegate, Key };
 
@@ -270,23 +270,49 @@ impl XIDDocument {
         }
     }
 
-    pub fn check_all_service_references(&self) -> Result<()> {
+    pub fn check_services_consistency(&self) -> Result<()> {
         for service in &self.services {
-            self.check_service_references(service)?;
+            self.check_service_consistency(service)?;
         }
         Ok(())
     }
 
-    pub fn check_service_references(&self, service: &Service) -> Result<()> {
+    pub fn check_service_consistency(&self, service: &Service) -> Result<()> {
+        if service.key_references().is_empty()
+            && service.delegate_references().is_empty()
+        {
+            bail!("No key or delegate references in service '{}'", service.uri());
+        }
+
         for key_reference in service.key_references() {
             if self.find_key_by_reference(key_reference).is_none() {
-                bail!("Unknown key reference: {}", key_reference);
+                bail!("Unknown key reference {} in service '{}'", key_reference, service.uri());
             }
         }
+
         for delegate_reference in service.delegate_references() {
             if self.find_delegate_by_reference(delegate_reference).is_none() {
-                bail!("Unknown delegate reference: {}", delegate_reference);
+                bail!("Unknown delegate reference {} in service '{}'", delegate_reference, service.uri());
             }
+        }
+
+        if service.permissions().allow().is_empty() {
+            bail!("No permissions in service '{}'", service.uri());
+        }
+
+        Ok(())
+    }
+
+    pub fn check_contains_key(&self, key: &dyn PublicKeyBaseProvider) -> Result<()> {
+        if self.find_key_by_public_key_base(key).is_none() {
+            bail!("Key not found in XID document: {}", key.public_key_base());
+        }
+        Ok(())
+    }
+
+    pub fn check_contains_delegate(&self, xid_provider: &dyn XIDProvider) -> Result<()> {
+        if self.find_delegate_by_xid(xid_provider).is_none() {
+            bail!("Delegate not found in XID document: {}", xid_provider.xid());
         }
         Ok(())
     }
@@ -398,7 +424,7 @@ impl XIDDocument {
             }
         }
 
-        xid_document.check_all_service_references()?;
+        xid_document.check_services_consistency()?;
 
         Ok(xid_document)
 
@@ -751,8 +777,8 @@ mod tests {
         let mut xid_document = XIDDocument::new_empty(&public_key_base);
 
         // Add resolution methods.
-        xid_document.add_resolution_method(URI::from("https://resolver.example.com"));
-        xid_document.add_resolution_method(URI::from("btcr:01234567"));
+        xid_document.add_resolution_method(URI::try_from("https://resolver.example.com").unwrap());
+        xid_document.add_resolution_method(URI::try_from("btcr:01234567").unwrap());
 
         // Convert the XID document to an Envelope.
         let envelope = xid_document.clone().into_envelope();
@@ -1079,7 +1105,7 @@ mod tests {
 
         alice_xid_document.add_delegate(bob_delegate).unwrap();
 
-        let service_uri = URI::from("https://example.com");
+        let service_uri = URI::try_from("https://example.com").unwrap();
         let mut service = Service::new(&service_uri);
 
         service.add_key(&alice_public_key_base).unwrap();

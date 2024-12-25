@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use bc_components::{ Reference, ReferenceProvider, URI };
-use bc_envelope::{ extension::{ ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY, KEY_RAW, NAME, NAME_RAW }, Envelope, EnvelopeEncodable, PublicKeyBase };
+use bc_components::{ PublicKeyBaseProvider, Reference, ReferenceProvider, XIDProvider, URI };
+use bc_envelope::{ extension::{ ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY, KEY_RAW, NAME, NAME_RAW }, Envelope, EnvelopeEncodable };
 use anyhow::{Error, Result, bail};
 
-use crate::{ HasName, HasPermissions, Permissions, Privilege, XIDDocument };
+use crate::{ HasName, HasPermissions, Permissions, Privilege };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
@@ -42,8 +42,8 @@ impl Service {
         &self.capability
     }
 
-    pub fn set_capability(&mut self, capability: String) {
-        self.capability = capability;
+    pub fn set_capability(&mut self, capability: impl Into<String>) {
+        self.capability = capability.into();
     }
 
     pub fn add_capability(&mut self, capability: &str) -> Result<()> {
@@ -53,7 +53,7 @@ impl Service {
         if capability.is_empty() {
             bail!("Capability is empty");
         }
-        self.set_capability(capability.to_string());
+        self.set_capability(capability);
 
         Ok(())
     }
@@ -76,8 +76,8 @@ impl Service {
         Ok(())
     }
 
-    pub fn add_key(&mut self, key: &PublicKeyBase) -> Result<()> {
-        self.add_key_reference(key.reference())
+    pub fn add_key(&mut self, key: &dyn PublicKeyBaseProvider) -> Result<()> {
+        self.add_key_reference(key.public_key_base().reference())
     }
 
     pub fn delegate_references(&self) -> &HashSet<Reference> {
@@ -98,8 +98,8 @@ impl Service {
         Ok(())
     }
 
-    pub fn add_delegate(&mut self, delegate: &XIDDocument) -> Result<()> {
-        self.add_delegate_reference(delegate.reference())
+    pub fn add_delegate(&mut self, delegate: &dyn XIDProvider) -> Result<()> {
+        self.add_delegate_reference(delegate.xid().reference())
     }
 }
 
@@ -216,7 +216,7 @@ mod tests {
         let bob_public_key_base = bob_private_key_base.public_key_base();
         let bob_xid_document = XIDDocument::new(bob_public_key_base);
 
-        let mut service = Service::new(URI::from("https://example.com"));
+        let mut service = Service::new(URI::try_from("https://example.com").unwrap());
 
         service.add_key(&alice_public_key_base).unwrap();
         assert!(service.add_key(&alice_public_key_base).is_err());

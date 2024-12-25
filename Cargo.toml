@@ -14,11 +14,11 @@ categories = ["cryptography"] # https://crates.io/category_slugs
 [dependencies]
 
 dcbor = { version = "^0.16.0", features = ["multithreaded"] }
-bc-components = "^0.14.0"
-bc-envelope = "^0.20.0"
+bc-components = "^0.15.0"
+bc-envelope = "^0.21.0"
 bc-ur = "^0.6.0"
 bc-rand = "^0.2.0"
-provenance-mark = "^0.1.1"
+provenance-mark = "^0.1.2"
 
 hex = "^0.4.3"
 anyhow = "^1.0.0"

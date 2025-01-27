@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use anyhow::Result;
 
-use bc_components::{ AgreementPublicKey, PrivateKeyBase, PublicKeyBase, PublicKeyBaseProvider, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
+use bc_components::{ EncapsulationPublicKey, PrivateKeyBase, PublicKeyBase, PublicKeyBaseProvider, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
 use bc_envelope::prelude::*;
 use known_values::{ENDPOINT, PRIVATE_KEY, NAME};
 
@@ -85,8 +85,8 @@ impl Key {
         self.public_key_base.signing_public_key()
     }
 
-    pub fn agreement_public_key(&self) -> &AgreementPublicKey {
-        self.public_key_base.agreement_public_key()
+    pub fn encapsulation_public_key(&self) -> &EncapsulationPublicKey {
+        self.public_key_base.enapsulation_public_key()
     }
 
     pub fn endpoints(&self) -> &HashSet<URI> {

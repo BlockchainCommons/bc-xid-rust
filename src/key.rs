@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use anyhow::Result;
 
-use bc_components::{ EncapsulationPublicKey, PrivateKeyBase, PublicKeyBase, PublicKeyBaseProvider, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
-use bc_envelope::prelude::*;
+use bc_components::{ EncapsulationPublicKey, PrivateKeys, PrivateKeysProvider, PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
+use bc_envelope::{prelude::*, PrivateKeyBase};
 use known_values::{ENDPOINT, PRIVATE_KEY, NAME};
 
 use crate::{HasName, HasPermissions, Privilege};
@@ -11,8 +11,8 @@ use super::Permissions;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Key {
-    public_key_base: PublicKeyBase,
-    private_key_base: Option<(PrivateKeyBase, Salt)>,
+    public_keys: PublicKeys,
+    private_keys: Option<(PrivateKeys, Salt)>,
     name: String,
     endpoints: HashSet<URI>,
     permissions: Permissions,
@@ -20,73 +20,78 @@ pub struct Key {
 
 impl Verifier for Key {
     fn verify(&self, signature: &bc_components::Signature, message: &dyn AsRef<[u8]>) -> bool {
-        self.public_key_base.verify(signature, message)
+        self.public_keys.verify(signature, message)
     }
 }
 
-impl PublicKeyBaseProvider for Key {
-    fn public_key_base(&self) -> PublicKeyBase {
-        self.public_key_base.clone()
+impl PublicKeysProvider for Key {
+    fn public_keys(&self) -> PublicKeys {
+        self.public_keys.clone()
     }
 }
 
 impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.public_key_base.hash(state);
+        self.public_keys.hash(state);
     }
 }
 
 impl Key {
-    pub fn new(public_key_base: impl AsRef<PublicKeyBase>) -> Self {
+    pub fn new(public_keys: impl AsRef<PublicKeys>) -> Self {
         Self {
-            public_key_base: public_key_base.as_ref().clone(),
-            private_key_base: None,
+            public_keys: public_keys.as_ref().clone(),
+            private_keys: None,
             name: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new(),
         }
     }
 
-    pub fn new_allow_all(public_key_base: impl AsRef<PublicKeyBase>) -> Self {
+    pub fn new_allow_all(public_keys: impl AsRef<PublicKeys>) -> Self {
         Self {
-            public_key_base: public_key_base.as_ref().clone(),
-            private_key_base: None,
+            public_keys: public_keys.as_ref().clone(),
+            private_keys: None,
             name: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
     }
 
-    pub fn new_with_private_key(private_key_base: PrivateKeyBase) -> Self {
-        let public_key_base = private_key_base.public_key_base();
-        let salt = Salt::new_for_size(private_key_base.to_cbor_data().len());
+    pub fn new_with_private_keys(private_keys: PrivateKeys, public_keys: PublicKeys) -> Self {
+        let salt = Salt::new_with_len(32).unwrap();
         Self {
-            public_key_base,
-            private_key_base: Some((private_key_base, salt)),
+            public_keys,
+            private_keys: Some((private_keys, salt)),
             name: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
     }
 
-    pub fn public_key_base(&self) -> &PublicKeyBase {
-        &self.public_key_base
+    pub fn new_with_private_key_base(private_key_base: PrivateKeyBase) -> Self {
+        let private_keys = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
+        Self::new_with_private_keys(private_keys, public_keys)
     }
 
-    pub fn private_key_base(&self) -> Option<&PrivateKeyBase> {
-        self.private_key_base.as_ref().map(|(private_key_base, _)| private_key_base)
+    pub fn public_keys(&self) -> &PublicKeys {
+        &self.public_keys
+    }
+
+    pub fn private_keys(&self) -> Option<&PrivateKeys> {
+        self.private_keys.as_ref().map(|(private_keys, _)| private_keys)
     }
 
     pub fn private_key_salt(&self) -> Option<&Salt> {
-        self.private_key_base.as_ref().map(|(_, salt)| salt)
+        self.private_keys.as_ref().map(|(_, salt)| salt)
     }
 
     pub fn signing_public_key(&self) -> &SigningPublicKey {
-        self.public_key_base.signing_public_key()
+        self.public_keys.signing_public_key()
     }
 
     pub fn encapsulation_public_key(&self) -> &EncapsulationPublicKey {
-        self.public_key_base.enapsulation_public_key()
+        self.public_keys.enapsulation_public_key()
     }
 
     pub fn endpoints(&self) -> &HashSet<URI> {
@@ -144,24 +149,25 @@ pub enum PrivateKeyOptions {
 
 impl Key {
     fn private_key_assertion_envelope(&self) -> Envelope {
-        let (private_key_base, salt) = self.private_key_base.clone().unwrap();
-        Envelope::new_assertion(PRIVATE_KEY, private_key_base)
+        let (private_keys, salt) = self.private_keys.clone().unwrap();
+        Envelope::new_assertion(PRIVATE_KEY, private_keys)
             .add_salt_instance(salt)
     }
 
-    fn extract_optional_private_key(envelope: &Envelope) -> Result<Option<(PrivateKeyBase, Salt)>> {
+    fn extract_optional_private_key(envelope: &Envelope) -> Result<Option<(PrivateKeys, Salt)>> {
         if let Some(private_key_assertion) = envelope.optional_assertion_with_predicate(PRIVATE_KEY)? {
-            let private_key_base_cbor = private_key_assertion.subject().try_object()?.try_leaf()?;
-            let private_key_base = PrivateKeyBase::try_from(private_key_base_cbor)?;
+            println!("private_key_assertion: {}", private_key_assertion.subject().try_object()?.format());
+            let private_keys_cbor = private_key_assertion.subject().try_object()?.try_leaf()?;
+            let private_keys = PrivateKeys::try_from(private_keys_cbor)?;
             let salt = private_key_assertion.extract_object_for_predicate::<Salt>(known_values::SALT)?;
-            return Ok(Some((private_key_base, salt)));
+            return Ok(Some((private_keys, salt)));
         }
         Ok(None)
     }
 
     pub fn into_envelope_opt(self, private_key_options: PrivateKeyOptions) -> Envelope {
-        let mut envelope = Envelope::new(self.public_key_base().clone());
-            if self.private_key_base.is_some() {
+        let mut envelope = Envelope::new(self.public_keys().clone());
+            if self.private_keys.is_some() {
                 match private_key_options {
                     PrivateKeyOptions::Include => {
                         let assertion_envelope = self.private_key_assertion_envelope();
@@ -195,8 +201,8 @@ impl TryFrom<&Envelope> for Key {
     type Error = anyhow::Error;
 
     fn try_from(envelope: &Envelope) -> Result<Self, Self::Error> {
-        let public_key_base = PublicKeyBase::try_from(envelope.subject().try_leaf()?)?;
-        let private_key_base = Key::extract_optional_private_key(envelope)?;
+        let public_keys = PublicKeys::try_from(envelope.subject().try_leaf()?)?;
+        let private_keys = Key::extract_optional_private_key(envelope)?;
 
         let name = envelope.extract_object_for_predicate_with_default(NAME, String::new())?;
 
@@ -207,8 +213,8 @@ impl TryFrom<&Envelope> for Key {
         }
         let permissions = Permissions::try_from_envelope(envelope)?;
         Ok(Self {
-            public_key_base,
-            private_key_base,
+            public_keys,
+            private_keys,
             name,
             endpoints,
             permissions,
@@ -226,14 +232,15 @@ impl TryFrom<Envelope> for Key {
 
 impl ReferenceProvider for &Key {
     fn reference(&self) -> Reference {
-        self.public_key_base.reference()
+        self.public_keys.reference()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bc_components::{PrivateKeyBase, PublicKeyBaseProvider};
+    use bc_components::{PrivateKeysProvider, PublicKeysProvider};
+    use bc_envelope::PrivateKeyBase;
     use bc_rand::make_fake_random_number_generator;
     use crate::Privilege;
     use indoc::indoc;
@@ -244,13 +251,14 @@ mod tests {
 
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base = private_key_base.public_key_base();
+        let _ = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
 
         let resolver1 = URI::new("https://resolver.example.com").unwrap();
         let resolver2 = URI::new("btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33").unwrap();
         let resolvers: HashSet<URI> = vec![resolver1, resolver2].into_iter().collect();
 
-        let mut key = Key::new(public_key_base);
+        let mut key = Key::new(public_keys);
         key.endpoints_mut().extend(resolvers);
         key.add_allow(Privilege::All);
         key.set_name("Alice's key".to_string());
@@ -261,7 +269,7 @@ mod tests {
 
         assert_eq!(envelope.format(),
         indoc! {r#"
-        PublicKeyBase(eb9b1cae) [
+        PublicKeys(eb9b1cae) [
             'allow': 'All'
             'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
             'endpoint': URI(https://resolver.example.com)
@@ -276,20 +284,22 @@ mod tests {
 
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
 
         //
-        // A `Key` can be constructed from a `PrivateKeyBase` implicitly gets
+        // A `Key` can be constructed from a `PrivateKeys` implicitly gets
         // all permissions.
         //
 
-        let key_including_private_key = Key::new_with_private_key(private_key_base.clone());
+        let key_including_private_key = Key::new_with_private_keys(private_keys.clone(), public_keys.clone());
 
         //
-        // Permissions given to a `Key` constructed from a `PublicKeyBase` are
+        // Permissions given to a `Key` constructed from a `PublicKeys` are
         // explicit.
         //
 
-        let key_omitting_private_key = Key::new_allow_all(private_key_base.public_key_base());
+        let key_omitting_private_key = Key::new_allow_all(private_key_base.public_keys());
 
         //
         // When converting to an `Envelope`, the default is to omit the private
@@ -301,7 +311,7 @@ mod tests {
 
         assert_eq!(envelope_omitting_private_key.format(),
         indoc! {r#"
-            PublicKeyBase(eb9b1cae) [
+            PublicKeys(eb9b1cae) [
                 'allow': 'All'
             ]
         "#}.trim());
@@ -325,9 +335,9 @@ mod tests {
 
         assert_eq!(envelope_including_private_key.format(),
         indoc! {r#"
-            PublicKeyBase(eb9b1cae) [
+            PublicKeys(eb9b1cae) [
                 {
-                    'privateKey': PrivateKeyBase
+                    'privateKey': PrivateKeys(fb7c8739)
                 } [
                     'salt': Salt
                 ]
@@ -352,7 +362,7 @@ mod tests {
 
         assert_eq!(envelope_eliding_private_key.format(),
         indoc! {r#"
-            PublicKeyBase(eb9b1cae) [
+            PublicKeys(eb9b1cae) [
                 'allow': 'All'
                 ELIDED
             ]

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use bc_components::{ PublicKeyBaseProvider, Reference, ReferenceProvider, XIDProvider, URI };
+use bc_components::{ PublicKeysProvider, Reference, ReferenceProvider, XIDProvider, URI };
 use bc_envelope::{ extension::{ ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY, KEY_RAW, NAME, NAME_RAW }, Envelope, EnvelopeEncodable };
 use anyhow::{Error, Result, bail};
 
@@ -76,8 +76,8 @@ impl Service {
         Ok(())
     }
 
-    pub fn add_key(&mut self, key: &dyn PublicKeyBaseProvider) -> Result<()> {
-        self.add_key_reference(key.public_key_base().reference())
+    pub fn add_key(&mut self, key: &dyn PublicKeysProvider) -> Result<()> {
+        self.add_key_reference(key.public_keys().reference())
     }
 
     pub fn delegate_references(&self) -> &HashSet<Reference> {
@@ -195,7 +195,7 @@ impl TryFrom<&Envelope> for Service {
 
 #[cfg(test)]
 mod tests {
-    use bc_components::{PublicKeyBaseProvider, URI};
+    use bc_components::{PublicKeysProvider, URI};
     use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
     use bc_rand::make_fake_random_number_generator;
 
@@ -210,16 +210,16 @@ mod tests {
         let mut rng = make_fake_random_number_generator();
 
         let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let alice_public_key_base = alice_private_key_base.public_key_base();
+        let alice_public_keys = alice_private_key_base.public_keys();
 
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_public_key_base = bob_private_key_base.public_key_base();
-        let bob_xid_document = XIDDocument::new(bob_public_key_base);
+        let bob_public_keys = bob_private_key_base.public_keys();
+        let bob_xid_document = XIDDocument::new(bob_public_keys);
 
         let mut service = Service::new(URI::try_from("https://example.com").unwrap());
 
-        service.add_key(&alice_public_key_base).unwrap();
-        assert!(service.add_key(&alice_public_key_base).is_err());
+        service.add_key(&alice_public_keys).unwrap();
+        assert!(service.add_key(&alice_public_keys).is_err());
 
         service.add_delegate(&bob_xid_document).unwrap();
         assert!(service.add_delegate(&bob_xid_document).is_err());

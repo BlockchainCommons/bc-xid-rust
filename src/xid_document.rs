@@ -2,18 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result, anyhow };
 use bc_components::{
-    tags::TAG_XID,
-    EncapsulationPublicKey,
-    PrivateKeyBase,
-    PublicKeyBase,
-    PublicKeyBaseProvider,
-    Reference,
-    ReferenceProvider,
-    Signer,
-    SigningPublicKey,
-    XIDProvider,
-    URI,
-    XID,
+    tags::TAG_XID, EncapsulationPublicKey, PrivateKeyBase, PrivateKeys, PrivateKeysProvider, PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Signer, SigningPublicKey, XIDProvider, URI, XID
 };
 use dcbor::CBOREncodable;
 use bc_ur::prelude::*;
@@ -47,13 +36,13 @@ pub struct XIDDocument {
 }
 
 impl XIDDocument {
-    pub fn new(inception_public_key: impl AsRef<PublicKeyBase>) -> Self {
+    pub fn new(inception_public_key: impl AsRef<PublicKeys>) -> Self {
         let mut doc = Self::new_empty(&inception_public_key);
         doc.add_key(Key::new_allow_all(&inception_public_key)).unwrap();
         doc
     }
 
-    pub fn new_empty(inception_public_key: impl AsRef<PublicKeyBase>) -> Self {
+    pub fn new_empty(inception_public_key: impl AsRef<PublicKeys>) -> Self {
         let xid = XID::new(inception_public_key.as_ref().signing_public_key());
         Self {
             xid,
@@ -65,10 +54,9 @@ impl XIDDocument {
         }
     }
 
-    pub fn new_with_private_key(inception_private_key: PrivateKeyBase) -> Self {
-        let inception_public_key = inception_private_key.public_key_base();
-        let xid = XID::new(inception_public_key.signing_public_key());
-        let inception_key = Key::new_with_private_key(inception_private_key);
+    pub fn new_with_keys(inception_private_keys: PrivateKeys, inception_public_keys: PublicKeys) -> Self {
+        let xid = XID::new(inception_public_keys.signing_public_key());
+        let inception_key = Key::new_with_private_keys(inception_private_keys, inception_public_keys);
         let mut keys = HashSet::new();
         keys.insert(inception_key.clone());
         Self {
@@ -81,8 +69,14 @@ impl XIDDocument {
         }
     }
 
+    pub fn new_with_private_key_base(private_key_base: PrivateKeyBase) -> Self {
+        let public_keys = private_key_base.public_keys();
+        let private_keys = private_key_base.private_keys();
+        Self::new_with_keys(private_keys, public_keys)
+    }
+
     pub fn new_with_provenance(
-        inception_public_key: PublicKeyBase,
+        inception_public_key: PublicKeys,
         provenance: ProvenanceMark
     ) -> Self {
         let mut doc = Self::new(inception_public_key);
@@ -126,31 +120,31 @@ impl XIDDocument {
     }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
-        if self.find_key_by_public_key_base(key.public_key_base()).is_some() {
+        if self.find_key_by_public_keys(key.public_keys()).is_some() {
             bail!("Key already exists");
         }
         self.keys.insert(key);
         Ok(())
     }
 
-    pub fn find_key_by_public_key_base(&self, key: &dyn PublicKeyBaseProvider) -> Option<&Key> {
-        let key = key.public_key_base();
-        self.keys.iter().find(|k| k.public_key_base() == &key)
+    pub fn find_key_by_public_keys(&self, key: &dyn PublicKeysProvider) -> Option<&Key> {
+        let key = key.public_keys();
+        self.keys.iter().find(|k| k.public_keys() == &key)
     }
 
     pub fn find_key_by_reference(&self, reference: &Reference) -> Option<&Key> {
-        self.keys.iter().find(|k| k.public_key_base().reference() == *reference)
+        self.keys.iter().find(|k| k.public_keys().reference() == *reference)
     }
 
-    pub fn take_key(&mut self, key: &dyn PublicKeyBaseProvider) -> Option<Key> {
-        if let Some(key) = self.find_key_by_public_key_base(key).cloned() {
+    pub fn take_key(&mut self, key: &dyn PublicKeysProvider) -> Option<Key> {
+        if let Some(key) = self.find_key_by_public_keys(key).cloned() {
             self.keys.take(&key)
         } else {
             None
         }
     }
 
-    pub fn remove_key(&mut self, key: &dyn PublicKeyBaseProvider) -> Result<()> {
+    pub fn remove_key(&mut self, key: &dyn PublicKeysProvider) -> Result<()> {
         if self.services_reference_key(key) {
             bail!("Key is referenced by a service");
         }
@@ -162,7 +156,7 @@ impl XIDDocument {
 
     pub fn set_name_for_key(
         &mut self,
-        key: &dyn PublicKeyBaseProvider,
+        key: &dyn PublicKeysProvider,
         name: impl Into<String>
     ) -> Result<()> {
         let mut key = self.take_key(key).ok_or_else(|| anyhow!("Key not found"))?;
@@ -179,10 +173,10 @@ impl XIDDocument {
             let Some(key) = self.keys
                 .iter()
                 .find(|k| {
-                    self.is_inception_signing_key(k.public_key_base().signing_public_key())
+                    self.is_inception_signing_key(k.public_keys().signing_public_key())
                 })
         {
-            Some(key.public_key_base().signing_public_key())
+            Some(key.public_keys().signing_public_key())
         } else {
             None
         }
@@ -191,7 +185,7 @@ impl XIDDocument {
     pub fn inception_key(&self) -> Option<&Key> {
         self.keys
             .iter()
-            .find(|k| { self.is_inception_signing_key(k.public_key_base().signing_public_key()) })
+            .find(|k| { self.is_inception_signing_key(k.public_keys().signing_public_key()) })
     }
 
     pub fn remove_inception_key(&mut self) -> Option<Key> {
@@ -201,9 +195,9 @@ impl XIDDocument {
     pub fn verification_key(&self) -> Option<&SigningPublicKey> {
         // Prefer the inception key for verification.
         if let Some(key) = self.inception_key() {
-            Some(key.public_key_base().signing_public_key())
+            Some(key.public_keys().signing_public_key())
         } else if let Some(key) = self.keys.iter().next() {
-            return Some(key.public_key_base().signing_public_key());
+            return Some(key.public_keys().signing_public_key());
         } else {
             None
         }
@@ -212,9 +206,9 @@ impl XIDDocument {
     pub fn encryption_key(&self) -> Option<&EncapsulationPublicKey> {
         // Prefer the inception key for encryption.
         if let Some(key) = self.inception_key() {
-            Some(key.public_key_base().enapsulation_public_key())
+            Some(key.public_keys().enapsulation_public_key())
         } else if let Some(key) = self.keys.iter().next() {
-            return Some(key.public_key_base().enapsulation_public_key());
+            return Some(key.public_keys().enapsulation_public_key());
         } else {
             None
         }
@@ -335,9 +329,9 @@ impl XIDDocument {
         Ok(())
     }
 
-    pub fn check_contains_key(&self, key: &dyn PublicKeyBaseProvider) -> Result<()> {
-        if self.find_key_by_public_key_base(key).is_none() {
-            bail!("Key not found in XID document: {}", key.public_key_base());
+    pub fn check_contains_key(&self, key: &dyn PublicKeysProvider) -> Result<()> {
+        if self.find_key_by_public_keys(key).is_none() {
+            bail!("Key not found in XID document: {}", key.public_keys());
         }
         Ok(())
     }
@@ -349,8 +343,8 @@ impl XIDDocument {
         Ok(())
     }
 
-    pub fn services_reference_key(&self, key: &dyn PublicKeyBaseProvider) -> bool {
-        let key_reference = key.public_key_base().reference();
+    pub fn services_reference_key(&self, key: &dyn PublicKeysProvider) -> bool {
+        let key_reference = key.public_keys().reference();
         self.services.iter().any(|service| service.key_references().contains(&key_reference))
     }
 
@@ -567,21 +561,21 @@ impl From<&XID> for XIDDocument {
     }
 }
 
-impl From<PublicKeyBase> for XIDDocument {
-    fn from(inception_key: PublicKeyBase) -> Self {
+impl From<PublicKeys> for XIDDocument {
+    fn from(inception_key: PublicKeys) -> Self {
         XIDDocument::new(inception_key)
     }
 }
 
 impl From<PrivateKeyBase> for XIDDocument {
     fn from(inception_key: PrivateKeyBase) -> Self {
-        XIDDocument::new_with_private_key(inception_key)
+        XIDDocument::new_with_private_key_base(inception_key)
     }
 }
 
 impl From<&PrivateKeyBase> for XIDDocument {
     fn from(inception_key: &PrivateKeyBase) -> Self {
-        XIDDocument::new_with_private_key(inception_key.clone())
+        XIDDocument::new_with_private_key_base(inception_key.clone())
     }
 }
 
@@ -649,10 +643,12 @@ impl CBORTaggedDecodable for XIDDocument {
 
 #[cfg(test)]
 mod tests {
-    use bc_envelope::prelude::*;
+    use std::collections::HashSet;
+
+    use bc_envelope::{prelude::*, PublicKeys};
     use bc_rand::make_fake_random_number_generator;
     use indoc::indoc;
-    use bc_components::{ tags, PrivateKeyBase, PublicKeyBaseProvider, XIDProvider, URI, XID };
+    use bc_components::{ tags, EncapsulationScheme, PrivateKeyBase, PrivateKeys, PublicKeysProvider, SignatureScheme, XIDProvider, URI, XID };
     use provenance_mark::{ ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed };
 
     use crate::{
@@ -671,25 +667,21 @@ mod tests {
         // Create a XID document.
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base = private_key_base.public_key_base();
-        let xid_document = XIDDocument::new(public_key_base);
+        let public_keys = private_key_base.public_keys();
+        let xid_document = XIDDocument::new(public_keys);
 
         // Extract the XID from the XID document.
         let xid = xid_document.xid();
 
         // Convert the XID document to an Envelope.
         let envelope = xid_document.clone().into_envelope();
-        let expected_format = (
-            indoc! {
-                r#"
+        let expected_format = (indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeyBase(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae) [
                     'allow': 'All'
                 ]
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected_format);
 
         // Convert the Envelope back to a XIDDocument.
@@ -769,6 +761,44 @@ mod tests {
     }
 
     #[test]
+    fn xid_document_pq() {
+        bc_envelope::register_tags();
+
+        // Create post-quantum keys.
+        let (signing_private_key, signing_public_key) = SignatureScheme::Dilithium2.keypair();
+        let (encapsulation_private_key, encapsulation_public_key) = EncapsulationScheme::Kyber512.keypair();
+        let private_keys = PrivateKeys::with_keys(signing_private_key, encapsulation_private_key);
+        let public_keys = PublicKeys::new(signing_public_key, encapsulation_public_key);
+
+        // Create the XID document.
+        let xid_document = XIDDocument::new_with_keys(private_keys, public_keys);
+
+        // Convert the XID document to an Envelope.
+        let envelope = xid_document.clone().to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+
+        // Convert the Envelope back to a XIDDocument.
+        let xid_document2 = XIDDocument::try_from(envelope).unwrap();
+        assert_eq!(xid_document, xid_document2);
+
+        // Convert the XID document to a UR. Note that this UR will *not*
+        // contain the `PrivateKeys`.
+        let xid_document_ur = xid_document.ur_string();
+
+        // The documents should *not* match, because the UR does not
+        // contain the `PrivateKeys`.
+        let xid_document2 = XIDDocument::from_ur_string(&xid_document_ur).unwrap();
+        assert_ne!(xid_document, xid_document2);
+
+        // But the XIDs should match.
+        assert_eq!(xid_document.xid(), xid_document2.xid());
+
+        // And the `PublicKeys` should match.
+        let public_keys_1: HashSet<PublicKeys> = xid_document.keys().iter().map(|k| k.public_keys().clone()).collect();
+        let public_keys_2: HashSet<PublicKeys> = xid_document2.keys().iter().map(|k| k.public_keys().clone()).collect();
+        assert_eq!(public_keys_1, public_keys_2);
+    }
+
+    #[test]
     fn minimal_xid_document() {
         // Create a XID.
         let mut rng = make_fake_random_number_generator();
@@ -820,8 +850,8 @@ mod tests {
         // Create a XID document.
         let mut rng = make_fake_random_number_generator();
         let private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base = private_key_base.public_key_base();
-        let mut xid_document = XIDDocument::new_empty(&public_key_base);
+        let public_keys = private_key_base.public_keys();
+        let mut xid_document = XIDDocument::new_empty(&public_keys);
 
         // Add resolution methods.
         xid_document.add_resolution_method(URI::try_from("https://resolver.example.com").unwrap());
@@ -829,7 +859,7 @@ mod tests {
 
         // Convert the XID document to an Envelope.
         let envelope = xid_document.clone().into_envelope();
-        println!("{}", envelope.format());
+        // println!("{}", envelope.format());
         let expected_format = (
             indoc! {
                 r#"
@@ -857,7 +887,7 @@ mod tests {
         // Generate the inception key.
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
-        let public_inception_key = private_inception_key.public_key_base();
+        let public_inception_key = private_inception_key.public_keys();
 
         // Create a XIDDocument for the inception key.
         let xid_document = XIDDocument::new(public_inception_key);
@@ -867,7 +897,7 @@ mod tests {
             indoc! {
                 r#"
         XID(71274df1) [
-            'key': PublicKeyBase(eb9b1cae) [
+            'key': PublicKeys(eb9b1cae) [
                 'allow': 'All'
             ]
         ]
@@ -883,7 +913,7 @@ mod tests {
                 r#"
         {
             XID(71274df1) [
-                'key': PublicKeyBase(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae) [
                     'allow': 'All'
                 ]
             ]
@@ -907,7 +937,7 @@ mod tests {
 
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
-        let inception_key = private_inception_key.public_key_base();
+        let inception_key = private_inception_key.public_keys();
 
         let genesis_seed = ProvenanceSeed::new_using(&mut rng);
 
@@ -924,7 +954,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae) [
                         'allow': 'All'
                     ]
                     'provenance': ProvenanceMark(cfe14854)
@@ -947,14 +977,14 @@ mod tests {
     fn with_private_key() {
         let mut rng = make_fake_random_number_generator();
         let private_inception_key = PrivateKeyBase::new_using(&mut rng);
-        let public_inception_key = private_inception_key.public_key_base();
+        let public_inception_key = private_inception_key.public_keys();
 
         //
         // A `XIDDocument` can be created from a private key, in which case it
         // will include the private key.
         //
 
-        let xid_document_including_private_key = XIDDocument::new_with_private_key(
+        let xid_document_including_private_key = XIDDocument::new_with_private_key_base(
             private_inception_key.clone()
         );
 
@@ -970,7 +1000,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae) [
                         'allow': 'All'
                     ]
                 ]
@@ -1010,9 +1040,9 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae) [
                         {
-                            'privateKey': PrivateKeyBase
+                            'privateKey': PrivateKeys(fb7c8739)
                         } [
                             'salt': Salt
                         ]
@@ -1051,7 +1081,7 @@ mod tests {
                 r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeyBase(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae) [
                         'allow': 'All'
                         ELIDED
                     ]
@@ -1101,17 +1131,17 @@ mod tests {
 
         // Create a new key.
         let private_key_base_2 = PrivateKeyBase::new_using(&mut rng);
-        let public_key_base_2 = private_key_base_2.public_key_base();
+        let public_keys_2 = private_key_base_2.public_keys();
 
         // Add the new key to the empty XID document.
-        let key_2 = Key::new_allow_all(public_key_base_2);
+        let key_2 = Key::new_allow_all(public_keys_2);
         xid_document_2.add_key(key_2.clone()).unwrap();
         let xid_document2_envelope = xid_document_2.to_envelope();
         let expected_format = (
             indoc! {
                 r#"
             XID(71274df1) [
-                'key': PublicKeyBase(b8164d99) [
+                'key': PublicKeys(b8164d99) [
                     'allow': 'All'
                 ]
             ]
@@ -1138,14 +1168,14 @@ mod tests {
         let mut rng = make_fake_random_number_generator();
 
         let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let alice_public_key_base = alice_private_key_base.public_key_base();
-        let mut alice_xid_document = XIDDocument::new(&alice_public_key_base);
-        alice_xid_document.set_name_for_key(&alice_public_key_base, "Alice").unwrap();
+        let alice_public_keys = alice_private_key_base.public_keys();
+        let mut alice_xid_document = XIDDocument::new(&alice_public_keys);
+        alice_xid_document.set_name_for_key(&alice_public_keys, "Alice").unwrap();
 
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_public_key_base = bob_private_key_base.public_key_base();
-        let mut bob_xid_document = XIDDocument::new(&bob_public_key_base);
-        bob_xid_document.set_name_for_key(&bob_public_key_base, "Bob").unwrap();
+        let bob_public_keys = bob_private_key_base.public_keys();
+        let mut bob_xid_document = XIDDocument::new(&bob_public_keys);
+        bob_xid_document.set_name_for_key(&bob_public_keys, "Bob").unwrap();
         let mut bob_delegate = Delegate::new(&bob_xid_document);
         bob_delegate.add_allow(Privilege::Sign);
         bob_delegate.add_allow(Privilege::Encrypt);
@@ -1155,7 +1185,7 @@ mod tests {
         let service_uri = URI::try_from("https://example.com").unwrap();
         let mut service = Service::new(&service_uri);
 
-        service.add_key(&alice_public_key_base).unwrap();
+        service.add_key(&alice_public_keys).unwrap();
         service.add_delegate(&bob_xid_document).unwrap();
         service.add_allow(Privilege::Encrypt);
         service.add_allow(Privilege::Sign);
@@ -1171,7 +1201,7 @@ mod tests {
             XID(71274df1) [
                 'delegate': {
                     XID(7c30cafe) [
-                        'key': PublicKeyBase(b8164d99) [
+                        'key': PublicKeys(b8164d99) [
                             'allow': 'All'
                             'name': "Bob"
                         ]
@@ -1180,7 +1210,7 @@ mod tests {
                     'allow': 'Encrypt'
                     'allow': 'Sign'
                 ]
-                'key': PublicKeyBase(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae) [
                     'allow': 'All'
                     'name': "Alice"
                 ]
@@ -1202,13 +1232,13 @@ mod tests {
         assert_eq!(alice_xid_document, alice_xid_document_2);
 
         // Can't remove the key or delegate while a service references them.
-        assert!(alice_xid_document.remove_key(&alice_public_key_base).is_err());
+        assert!(alice_xid_document.remove_key(&alice_public_keys).is_err());
         assert!(alice_xid_document.remove_delegate(&bob_xid_document).is_err());
 
         // Remove the service.
         alice_xid_document.remove_service(&service_uri).unwrap();
         // Now the key and delegate can be removed.
-        alice_xid_document.remove_key(&alice_public_key_base).unwrap();
+        alice_xid_document.remove_key(&alice_public_keys).unwrap();
         alice_xid_document.remove_delegate(&bob_xid_document).unwrap();
     }
 }

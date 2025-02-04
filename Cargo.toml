@@ -1,6 +1,6 @@
 [package]
 name = "bc-xid"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Unique, stable, extensible, and verifiable identifiers"
 authors = ["Blockchain Commons"]
@@ -14,11 +14,11 @@ categories = ["cryptography"] # https://crates.io/category_slugs
 [dependencies]
 
 dcbor = { version = "^0.16.0", features = ["multithreaded"] }
-bc-components = "^0.15.0"
-bc-envelope = "^0.21.0"
-bc-ur = "^0.6.0"
+bc-components = "^0.16.0"
+bc-envelope = "^0.22.0"
+bc-ur = "^0.6.2"
 bc-rand = "^0.2.0"
-provenance-mark = { version = "^0.3.2", features = ["envelope"] }
+provenance-mark = { version = "^0.4.0", features = ["envelope"] }
 
 hex = "^0.4.3"
 anyhow = "^1.0.0"

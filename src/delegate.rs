@@ -86,7 +86,7 @@ impl ReferenceProvider for Delegate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bc_components::{PrivateKeyBase, PublicKeyBaseProvider};
+    use bc_components::{PrivateKeyBase, PublicKeysProvider};
     use bc_rand::make_fake_random_number_generator;
     use crate::Privilege;
     use indoc::indoc;
@@ -102,7 +102,7 @@ mod tests {
         let envelope = alice_xid_document.clone().into_envelope();
         let expected = (indoc! {r#"
         XID(71274df1) [
-            'key': PublicKeyBase(eb9b1cae) [
+            'key': PublicKeys(eb9b1cae) [
                 'allow': 'All'
             ]
         ]
@@ -111,13 +111,13 @@ mod tests {
 
         // Create Bob's XIDDocument
         let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
-        let bob_public_key_base = bob_private_key_base.public_key_base();
-        let bob_xid_document = XIDDocument::from(bob_public_key_base);
+        let bob_public_keys = bob_private_key_base.public_keys();
+        let bob_xid_document = XIDDocument::from(bob_public_keys);
 
         let envelope = bob_xid_document.clone().into_envelope();
         let expected = (indoc! {r#"
         XID(7c30cafe) [
-            'key': PublicKeyBase(b8164d99) [
+            'key': PublicKeys(b8164d99) [
                 'allow': 'All'
             ]
         ]
@@ -156,7 +156,7 @@ mod tests {
                 'allow': 'Encrypt'
                 'allow': 'Sign'
             ]
-            'key': PublicKeyBase(eb9b1cae) [
+            'key': PublicKeys(eb9b1cae) [
                 'allow': 'All'
             ]
         ]
@@ -175,7 +175,7 @@ mod tests {
         let expected = (indoc! {r#"
         {
             XID(7c30cafe) [
-                'key': PublicKeyBase(b8164d99) [
+                'key': PublicKeys(b8164d99) [
                     'allow': 'All'
                 ]
             ]
@@ -194,7 +194,7 @@ mod tests {
         XID(71274df1) [
             'delegate': {
                 XID(7c30cafe) [
-                    'key': PublicKeyBase(b8164d99) [
+                    'key': PublicKeys(b8164d99) [
                         'allow': 'All'
                     ]
                 ]
@@ -202,7 +202,7 @@ mod tests {
                 'allow': 'Encrypt'
                 'allow': 'Sign'
             ]
-            'key': PublicKeyBase(eb9b1cae) [
+            'key': PublicKeys(eb9b1cae) [
                 'allow': 'All'
             ]
         ]

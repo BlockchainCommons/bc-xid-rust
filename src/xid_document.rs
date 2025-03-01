@@ -765,8 +765,8 @@ mod tests {
         bc_envelope::register_tags();
 
         // Create post-quantum keys.
-        let (signing_private_key, signing_public_key) = SignatureScheme::Dilithium2.keypair();
-        let (encapsulation_private_key, encapsulation_public_key) = EncapsulationScheme::Kyber512.keypair();
+        let (signing_private_key, signing_public_key) = SignatureScheme::MLDSA44.keypair();
+        let (encapsulation_private_key, encapsulation_public_key) = EncapsulationScheme::MLKEM512.keypair();
         let private_keys = PrivateKeys::with_keys(signing_private_key, encapsulation_private_key);
         let public_keys = PublicKeys::new(signing_public_key, encapsulation_public_key);
 

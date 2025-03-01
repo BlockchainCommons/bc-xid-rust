@@ -1,6 +1,6 @@
 [package]
 name = "bc-xid"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "Unique, stable, extensible, and verifiable identifiers"
 authors = ["Blockchain Commons"]
@@ -8,8 +8,8 @@ repository = "https://github.com/BlockchainCommons/bc-xid-rust"
 readme = "README.md"
 license = "BSD-2-Clause-Patent"
 documentation = "https://docs.rs/bc-xid"
-keywords = ["cryptography"] # Up to five
-categories = ["cryptography"] # https://crates.io/category_slugs
+keywords = ["cryptography"]                                            # Up to five
+categories = ["cryptography"]                                          # https://crates.io/category_slugs
 
 [dependencies]
 

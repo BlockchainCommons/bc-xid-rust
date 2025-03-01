@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/bc-xid/0.4.0")]
+#![doc(html_root_url = "https://docs.rs/bc-xid/0.5.0")]
 #![warn(rust_2018_idioms)]
 
 //! # Introduction
@@ -19,7 +19,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! bc-xid = "0.4.0"
+//! bc-xid = "0.5.0"
 //! ```
 //!
 //! # Examples
@@ -52,7 +52,7 @@ mod name;
 pub use name::*;
 
 #[cfg(test)]
-    mod tests {
+mod tests {
     #[test]
     fn test_readme_deps() {
         version_sync::assert_markdown_deps_updated!("README.md");

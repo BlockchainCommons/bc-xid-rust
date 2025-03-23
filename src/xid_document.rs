@@ -376,7 +376,7 @@ impl XIDDocument {
     }
 
     pub fn to_unsigned_envelope_opt(&self, private_key_options: PrivateKeyOptions) -> Envelope {
-        let mut envelope = Envelope::new(self.xid.clone());
+        let mut envelope = Envelope::new(self.xid);
 
         // Add an assertion for each resolution method.
         envelope = self.resolution_methods
@@ -527,7 +527,7 @@ impl XIDDocument {
 
 impl XIDProvider for XIDDocument {
     fn xid(&self) -> XID {
-        self.xid.clone()
+        self.xid
     }
 }
 
@@ -552,12 +552,6 @@ impl From<XIDDocument> for XID {
 impl From<XID> for XIDDocument {
     fn from(xid: XID) -> Self {
         XIDDocument::from_xid(xid)
-    }
-}
-
-impl From<&XID> for XIDDocument {
-    fn from(xid: &XID) -> Self {
-        XIDDocument::from_xid(xid.clone())
     }
 }
 
@@ -806,7 +800,7 @@ mod tests {
         let xid = XID::from(&private_key_base);
 
         // Create a XIDDocument directly from the XID.
-        let xid_document = XIDDocument::from(&xid);
+        let xid_document = XIDDocument::from(xid);
 
         // Convert the XIDDocument to an Envelope.
         let envelope = xid_document.clone().into_envelope();

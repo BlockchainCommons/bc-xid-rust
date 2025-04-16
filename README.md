@@ -8,13 +8,13 @@
 
 ## Introduction
 
-XIDs (eXtensible IDentity, */zid/*) are unique 32-byte identifier that represent any entities—real or abstract—such as a person, organization, or device. Generated from the SHA-256 hash of a specific public signing key known as the inception key, a XID provides a stable identity throughout its lifecycle, even as associated keys and permissions evolve. Leveraging Gordian Envelope for XID Documents, XIDs are recursively resolvable and extensible, allowing for detailed assertions about the entity, including key declarations, permissions, controllers, and endpoints. The integration of [provenance marks](https://provemark.com) ensures a verifiable chain of document revisions, enhancing security and authenticity in decentralized identity management.
+XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent any entities—real or abstract—such as a person, organization, or device. Generated from the SHA-256 hash of a specific public signing key known as the inception key, a XID provides a stable identity throughout its lifecycle, even as associated keys and permissions evolve. Leveraging Gordian Envelope for XID Documents, XIDs are recursively resolvable and extensible, allowing for detailed assertions about the entity, including key declarations, permissions, controllers, and endpoints. The integration of [provenance marks](https://provemark.com) ensures a verifiable chain of document revisions, enhancing security and authenticity in decentralized identity management.
 
 ## Getting Started
 
 ```toml
 [dependencies]
-bc-xid = "0.5.0"
+bc-xid = "0.6.0"
 ```
 
 ## Specification
@@ -30,10 +30,10 @@ Principles](https://github.com/BlockchainCommons/Gordian#gordian-principles),
 which are philosophical and technical underpinnings to Blockchain Commons'
 Gordian technology. This includes:
 
-* **Independence.** `how does it demonstrate independence`
-* **Privacy.** `how does it demonstrate privacy`
-* **Resilience.** `how does it demonstrate resilience`
-* **Openness.** `how does it demonstrate openness`
+- **Independence.** `how does it demonstrate independence`
+- **Privacy.** `how does it demonstrate privacy`
+- **Resilience.** `how does it demonstrate resilience`
+- **Openness.** `how does it demonstrate openness`
 
 Blockchain Commons apps do not phone home and do not run ads. Some are available through various app stores; all are available in our code repositories for your usage.
 
@@ -88,10 +88,10 @@ If your company requires support to use our projects, please feel free to contac
 
 The following people directly contributed to this repository. You can add your name here by getting involved. The first step is learning how to contribute from our [CONTRIBUTING.md](./CONTRIBUTING.md) documentation.
 
-| Name              | Role                | Github                                            | Email                                 | GPG Fingerprint                                    |
-| ----------------- | ------------------- | ------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
-| Christopher Allen | Principal Architect | [@ChristopherA](https://github.com/ChristopherA)  | \<ChristopherA@LifeWithAlacrity.com\> | FDFE 14A5 4ECB 30FC 5D22  74EF F8D3 6C91 3574 05ED |
-| Wolf McNally      | Contributor         | [@WolfMcNally](https://github.com/wolfmcnally)    | \<Wolf@WolfMcNally.com\>              | 9436 52EE 3844 1760 C3DC  3536 4B6C 2FCF 8947 80AE |
+| Name              | Role                | Github                                           | Email                                 | GPG Fingerprint                                    |
+| ----------------- | ------------------- | ------------------------------------------------ | ------------------------------------- | -------------------------------------------------- |
+| Christopher Allen | Principal Architect | [@ChristopherA](https://github.com/ChristopherA) | \<ChristopherA@LifeWithAlacrity.com\> | FDFE 14A5 4ECB 30FC 5D22 74EF F8D3 6C91 3574 05ED  |
+| Wolf McNally      | Contributor         | [@WolfMcNally](https://github.com/wolfmcnally)   | \<Wolf@WolfMcNally.com\>              | 9436 52EE 3844 1760 C3DC  3536 4B6C 2FCF 8947 80AE |
 
 ## Responsible Disclosure
 
@@ -105,8 +105,8 @@ Please report suspected security vulnerabilities in private via email to Christo
 
 The following keys may be used to communicate sensitive information to developers:
 
-| Name              | Fingerprint                                        |
-| ----------------- | -------------------------------------------------- |
-| Christopher Allen | FDFE 14A5 4ECB 30FC 5D22  74EF F8D3 6C91 3574 05ED |
+| Name              | Fingerprint                                       |
+| ----------------- | ------------------------------------------------- |
+| Christopher Allen | FDFE 14A5 4ECB 30FC 5D22 74EF F8D3 6C91 3574 05ED |
 
 You can import a key by running the following command with that individual’s fingerprint: `gpg --recv-keys "<fingerprint>"` Ensure that you put quotes around fingerprints that contain spaces.

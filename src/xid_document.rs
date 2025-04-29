@@ -4,8 +4,7 @@ use anyhow::{ bail, Error, Result, anyhow };
 use bc_components::{
     tags::TAG_XID, EncapsulationPublicKey, PrivateKeyBase, PrivateKeys, PrivateKeysProvider, PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Signer, SigningPublicKey, XIDProvider, URI, XID
 };
-use dcbor::CBOREncodable;
-use bc_ur::prelude::*;
+use dcbor::prelude::*;
 use known_values::{
     DELEGATE,
     DELEGATE_RAW,
@@ -617,21 +616,21 @@ impl CBORTaggedEncodable for XIDDocument {
 }
 
 impl TryFrom<CBOR> for XIDDocument {
-    type Error = Error;
+    type Error = dcbor::Error;
 
-    fn try_from(cbor: CBOR) -> Result<Self> {
+    fn try_from(cbor: CBOR) -> dcbor::Result<Self> {
         Self::from_tagged_cbor(cbor)
     }
 }
 
 impl CBORTaggedDecodable for XIDDocument {
-    fn from_untagged_cbor(cbor: CBOR) -> Result<Self> {
+    fn from_untagged_cbor(cbor: CBOR) -> dcbor::Result<Self> {
         if let Some(byte_string) = cbor.clone().into_byte_string() {
             let xid = XID::from_data_ref(byte_string)?;
             return Ok(Self::from_xid(xid));
         }
 
-        Envelope::try_from(cbor)?.try_into()
+        Ok(Envelope::try_from(cbor)?.try_into()?)
     }
 }
 
@@ -669,6 +668,7 @@ mod tests {
 
         // Convert the XID document to an Envelope.
         let envelope = xid_document.clone().into_envelope();
+        #[rustfmt::skip]
         let expected_format = (indoc! {r#"
             XID(71274df1) [
                 'key': PublicKeys(eb9b1cae) [
@@ -706,18 +706,12 @@ mod tests {
 
         // Print the CBOR diagnostic notation for the XID.
         let xid_cbor_diagnostic = xid.to_cbor().diagnostic();
-        assert_eq!(
-            xid_cbor_diagnostic,
-            (
-                indoc! {
-                    r#"
-        40024(
-            h'71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c'
-        )
-        "#
-                }
-            ).trim()
-        );
+        #[rustfmt::skip]
+        assert_eq!(xid_cbor_diagnostic, (indoc! {r#"
+            40024(
+                h'71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c'
+            )
+        "#}).trim());
 
         // Print the hex encoding of the XID.
         with_tags!(|tags: &dyn dcbor::TagsStoreTrait| {
@@ -725,18 +719,12 @@ mod tests {
         });
 
         let xid_cbor_hex = xid.to_cbor().hex_annotated();
-        assert_eq!(
-            xid_cbor_hex,
-            (
-                indoc! {
-                    r#"
-        d9 9c58                                 # tag(40024) xid
-            5820                                # bytes(32)
-                71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c
-        "#
-                }
-            ).trim()
-        );
+        #[rustfmt::skip]
+        assert_eq!(xid_cbor_hex, (indoc! {r#"
+            d9 9c58                                 # tag(40024) xid
+                5820                                # bytes(32)
+                    71274df133169a0e2d2ffb11cbc7917732acafa31989f685cca6cb69d473b93c
+        "#}).trim());
 
         // Print the XID's Bytewords and Bytemoji identifiers.
         let bytewords_identifier = xid.bytewords_identifier(true);
@@ -806,13 +794,10 @@ mod tests {
         let envelope = xid_document.clone().into_envelope();
 
         // The envelope is just the XID as its subject, with no assertions.
-        let expected_format = (
-            indoc! {
-                r#"
-        XID(71274df1)
-        "#
-            }
-        ).trim();
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
+            XID(71274df1)
+        "#}).trim();
         assert_eq!(envelope.format(), expected_format);
 
         // Convert the Envelope back to a XIDDocument.
@@ -854,16 +839,13 @@ mod tests {
         // Convert the XID document to an Envelope.
         let envelope = xid_document.clone().into_envelope();
         // println!("{}", envelope.format());
-        let expected_format = (
-            indoc! {
-                r#"
-        XID(71274df1) [
-            'dereferenceVia': URI(btcr:01234567)
-            'dereferenceVia': URI(https://resolver.example.com)
-        ]
-        "#
-            }
-        ).trim();
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
+            XID(71274df1) [
+                'dereferenceVia': URI(btcr:01234567)
+                'dereferenceVia': URI(https://resolver.example.com)
+            ]
+        "#}).trim();
         assert_eq!(envelope.format(), expected_format);
 
         // Convert the Envelope back to a XIDDocument.
@@ -887,36 +869,30 @@ mod tests {
         let xid_document = XIDDocument::new(public_inception_key);
 
         let envelope = xid_document.clone().into_envelope();
-        let expected_format = (
-            indoc! {
-                r#"
-        XID(71274df1) [
-            'key': PublicKeys(eb9b1cae) [
-                'allow': 'All'
-            ]
-        ]
-        "#
-            }
-        ).trim();
-        assert_eq!(envelope.format(), expected_format);
-
-        let signed_envelope = xid_document.to_signed_envelope(&private_inception_key);
-        // println!("{}", signed_envelope.format());
-        let expected_format = (
-            indoc! {
-                r#"
-        {
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             XID(71274df1) [
                 'key': PublicKeys(eb9b1cae) [
                     'allow': 'All'
                 ]
             ]
-        } [
-            'signed': Signature
-        ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
+        assert_eq!(envelope.format(), expected_format);
+
+        let signed_envelope = xid_document.to_signed_envelope(&private_inception_key);
+        // println!("{}", signed_envelope.format());
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
+            {
+                XID(71274df1) [
+                    'key': PublicKeys(eb9b1cae) [
+                        'allow': 'All'
+                    ]
+                ]
+            } [
+                'signed': Signature
+            ]
+        "#}).trim();
         assert_eq!(signed_envelope.format(), expected_format);
 
         let self_certified_xid_document = XIDDocument::try_from_signed_envelope(
@@ -943,9 +919,8 @@ mod tests {
         let provenance = generator.next(date, None::<String>);
         let xid_document = XIDDocument::new_with_provenance(inception_key, provenance);
         let signed_envelope = xid_document.to_signed_envelope(&private_inception_key);
-        let expected_format = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
                     'key': PublicKeys(eb9b1cae) [
@@ -956,9 +931,7 @@ mod tests {
             } [
                 'signed': Signature
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(signed_envelope.format(), expected_format);
 
         let self_certified_xid_document = XIDDocument::try_from_signed_envelope(
@@ -989,9 +962,8 @@ mod tests {
 
         let signed_envelope_omitting_private_key =
             xid_document_including_private_key.to_signed_envelope(&private_inception_key);
-        let expected_format = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
                     'key': PublicKeys(eb9b1cae) [
@@ -1001,9 +973,7 @@ mod tests {
             } [
                 'signed': Signature
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(signed_envelope_omitting_private_key.format(), expected_format);
         let xid_document2 = XIDDocument::try_from_signed_envelope(
             &signed_envelope_omitting_private_key
@@ -1029,9 +999,8 @@ mod tests {
                 &private_inception_key,
                 PrivateKeyOptions::Include
             );
-        let expected_format = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
                     'key': PublicKeys(eb9b1cae) [
@@ -1046,9 +1015,7 @@ mod tests {
             } [
                 'signed': Signature
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(signed_envelope_including_private_key.format(), expected_format);
 
         //
@@ -1070,9 +1037,8 @@ mod tests {
                 &private_inception_key,
                 PrivateKeyOptions::Elide
             );
-        let expected_format = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
                     'key': PublicKeys(eb9b1cae) [
@@ -1083,9 +1049,7 @@ mod tests {
             } [
                 'signed': Signature
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(signed_document_eliding_private_key.format(), expected_format);
 
         //
@@ -1114,13 +1078,10 @@ mod tests {
         assert!(xid_document_2.is_empty());
 
         let xid_document2_envelope = xid_document_2.to_envelope();
-        let expected_format = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             XID(71274df1)
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(xid_document2_envelope.format(), expected_format);
 
         // Create a new key.
@@ -1131,17 +1092,14 @@ mod tests {
         let key_2 = Key::new_allow_all(public_keys_2);
         xid_document_2.add_key(key_2.clone()).unwrap();
         let xid_document2_envelope = xid_document_2.to_envelope();
-        let expected_format = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected_format = (indoc! {r#"
             XID(71274df1) [
                 'key': PublicKeys(b8164d99) [
                     'allow': 'All'
                 ]
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(xid_document2_envelope.format(), expected_format);
 
         // Same XID, but different key.
@@ -1189,9 +1147,8 @@ mod tests {
         alice_xid_document.add_service(service).unwrap();
 
         let envelope = alice_xid_document.clone().into_envelope();
-        let expected = (
-            indoc! {
-                r#"
+        #[rustfmt::skip]
+        let expected = (indoc! {r#"
             XID(71274df1) [
                 'delegate': {
                     XID(7c30cafe) [
@@ -1217,9 +1174,7 @@ mod tests {
                     'name': "Example Service"
                 ]
             ]
-        "#
-            }
-        ).trim();
+        "#}).trim();
         assert_eq!(envelope.format(), expected);
 
         let alice_xid_document_2 = XIDDocument::try_from(envelope).unwrap();

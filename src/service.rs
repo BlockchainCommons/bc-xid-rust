@@ -1,8 +1,22 @@
 use std::collections::HashSet;
 
 use bc_components::{ PublicKeysProvider, Reference, ReferenceProvider, XIDProvider, URI };
-use bc_envelope::{ extension::{ ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY, KEY_RAW, NAME, NAME_RAW }, Envelope, EnvelopeEncodable };
-use anyhow::{Error, Result, bail};
+use bc_envelope::{
+    extension::{
+        ALLOW_RAW,
+        CAPABILITY,
+        CAPABILITY_RAW,
+        DELEGATE,
+        DELEGATE_RAW,
+        KEY,
+        KEY_RAW,
+        NAME,
+        NAME_RAW,
+    },
+    Envelope,
+    EnvelopeEncodable,
+};
+use anyhow::{ Error, Result, bail };
 
 use crate::{ HasName, HasPermissions, Permissions, Privilege };
 
@@ -88,7 +102,10 @@ impl Service {
         &mut self.delegate_references
     }
 
-    pub fn add_delegate_reference(&mut self, delegate_reference: impl AsRef<Reference>) -> Result<()> {
+    pub fn add_delegate_reference(
+        &mut self,
+        delegate_reference: impl AsRef<Reference>
+    ) -> Result<()> {
         if !self.delegate_references.contains(delegate_reference.as_ref()) {
             self.delegate_references.insert(delegate_reference.as_ref().clone());
         } else {
@@ -169,22 +186,22 @@ impl TryFrom<&Envelope> for Service {
                 KEY_RAW => {
                     let key = Reference::try_from(object.try_leaf()?)?;
                     service.add_key_reference(key)?;
-                },
+                }
                 DELEGATE_RAW => {
                     let delegate = Reference::try_from(object.try_leaf()?)?;
                     service.add_delegate_reference(delegate)?;
-                },
+                }
                 CAPABILITY_RAW => {
                     let capability = object.try_leaf()?.try_into_text()?;
                     service.add_capability(&capability)?;
-                },
+                }
                 NAME_RAW => {
                     let name = object.try_leaf()?.try_into_text()?;
                     service.add_name(&name)?;
-                },
+                }
                 ALLOW_RAW => {
                     service.add_allow(Privilege::try_from(object)?);
-                },
+                }
                 _ => bail!("Unexpected predicate: {}", predicate),
             }
         }
@@ -195,11 +212,11 @@ impl TryFrom<&Envelope> for Service {
 
 #[cfg(test)]
 mod tests {
-    use bc_components::{PublicKeysProvider, URI};
-    use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
+    use bc_components::{ PublicKeysProvider, URI };
+    use bc_envelope::{ EnvelopeEncodable, PrivateKeyBase };
     use bc_rand::make_fake_random_number_generator;
 
-    use crate::{HasName, HasPermissions, Privilege, XIDDocument};
+    use crate::{ HasName, HasPermissions, Privilege, XIDDocument };
 
     use super::Service;
 
@@ -234,6 +251,7 @@ mod tests {
         assert!(service.add_capability("com.example.messaging").is_err());
 
         let envelope = service.to_envelope();
+        #[rustfmt::skip]
         let expected = indoc::indoc! {r#"
             URI(https://example.com) [
                 'allow': 'Encrypt'

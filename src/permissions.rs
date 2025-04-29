@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 use bc_envelope::prelude::*;
-use known_values::{ALLOW, DENY};
+use known_values::{ ALLOW, DENY };
 
 use super::Privilege;
 
@@ -73,14 +73,28 @@ impl Permissions {
 
     pub fn add_to_envelope(&self, envelope: Envelope) -> Envelope {
         let mut envelope = envelope;
-        envelope = self.allow.iter().fold(envelope, |envelope, privilege| envelope.add_assertion(ALLOW, privilege));
-        envelope = self.deny.iter().fold(envelope, |envelope, privilege| envelope.add_assertion(DENY, privilege));
+        envelope = self.allow
+            .iter()
+            .fold(envelope, |envelope, privilege| envelope.add_assertion(ALLOW, privilege));
+        envelope = self.deny
+            .iter()
+            .fold(envelope, |envelope, privilege| envelope.add_assertion(DENY, privilege));
         envelope
     }
 
     pub fn try_from_envelope(envelope: &Envelope) -> Result<Self> {
-        let allow = envelope.objects_for_predicate(ALLOW).iter().cloned().map(Privilege::try_from).collect::<Result<HashSet<_>>>()?;
-        let deny = envelope.objects_for_predicate(DENY).iter().cloned().map(Privilege::try_from).collect::<Result<HashSet<_>>>()?;
+        let allow = envelope
+            .objects_for_predicate(ALLOW)
+            .iter()
+            .cloned()
+            .map(Privilege::try_from)
+            .collect::<Result<HashSet<_>>>()?;
+        let deny = envelope
+            .objects_for_predicate(DENY)
+            .iter()
+            .cloned()
+            .map(Privilege::try_from)
+            .collect::<Result<HashSet<_>>>()?;
         Ok(Self { allow, deny })
     }
 }
@@ -119,12 +133,12 @@ mod tests {
         let permissions2 = Permissions::try_from_envelope(&envelope).unwrap();
         assert_eq!(permissions, permissions2);
 
-        assert_eq!(envelope.format(),
-        indoc! {r#"
-        "Subject" [
-            'allow': 'All'
-            'deny': 'Verify'
-        ]
+        #[rustfmt::skip]
+        assert_eq!(envelope.format(), indoc! {r#"
+            "Subject" [
+                'allow': 'All'
+                'deny': 'Verify'
+            ]
         "#}.trim());
     }
 }

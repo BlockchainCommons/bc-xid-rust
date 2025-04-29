@@ -1,11 +1,23 @@
 use std::collections::HashSet;
 use anyhow::Result;
 
-use bc_components::{ EncapsulationPublicKey, PrivateKeys, PrivateKeysProvider, PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Salt, SigningPublicKey, Verifier, URI };
-use bc_envelope::{prelude::*, PrivateKeyBase};
-use known_values::{ENDPOINT, PRIVATE_KEY, NAME};
+use bc_components::{
+    EncapsulationPublicKey,
+    PrivateKeys,
+    PrivateKeysProvider,
+    PublicKeys,
+    PublicKeysProvider,
+    Reference,
+    ReferenceProvider,
+    Salt,
+    SigningPublicKey,
+    Verifier,
+    URI,
+};
+use bc_envelope::{ prelude::*, PrivateKeyBase };
+use known_values::{ ENDPOINT, PRIVATE_KEY, NAME };
 
-use crate::{HasName, HasPermissions, Privilege};
+use crate::{ HasName, HasPermissions, Privilege };
 
 use super::Permissions;
 
@@ -150,16 +162,23 @@ pub enum PrivateKeyOptions {
 impl Key {
     fn private_key_assertion_envelope(&self) -> Envelope {
         let (private_keys, salt) = self.private_keys.clone().unwrap();
-        Envelope::new_assertion(PRIVATE_KEY, private_keys)
-            .add_salt_instance(salt)
+        Envelope::new_assertion(PRIVATE_KEY, private_keys).add_salt_instance(salt)
     }
 
     fn extract_optional_private_key(envelope: &Envelope) -> Result<Option<(PrivateKeys, Salt)>> {
-        if let Some(private_key_assertion) = envelope.optional_assertion_with_predicate(PRIVATE_KEY)? {
-            println!("private_key_assertion: {}", private_key_assertion.subject().try_object()?.format());
+        if
+            let Some(private_key_assertion) =
+                envelope.optional_assertion_with_predicate(PRIVATE_KEY)?
+        {
+            println!(
+                "private_key_assertion: {}",
+                private_key_assertion.subject().try_object()?.format()
+            );
             let private_keys_cbor = private_key_assertion.subject().try_object()?.try_leaf()?;
             let private_keys = PrivateKeys::try_from(private_keys_cbor)?;
-            let salt = private_key_assertion.extract_object_for_predicate::<Salt>(known_values::SALT)?;
+            let salt = private_key_assertion.extract_object_for_predicate::<Salt>(
+                known_values::SALT
+            )?;
             return Ok(Some((private_keys, salt)));
         }
         Ok(None)
@@ -167,19 +186,19 @@ impl Key {
 
     pub fn into_envelope_opt(self, private_key_options: PrivateKeyOptions) -> Envelope {
         let mut envelope = Envelope::new(self.public_keys().clone());
-            if self.private_keys.is_some() {
-                match private_key_options {
-                    PrivateKeyOptions::Include => {
-                        let assertion_envelope = self.private_key_assertion_envelope();
-                        envelope = envelope.add_assertion_envelope(assertion_envelope).unwrap();
-                    }
-                    PrivateKeyOptions::Elide => {
-                        let assertion_envelope = self.private_key_assertion_envelope().elide();
-                        envelope = envelope.add_assertion_envelope(assertion_envelope).unwrap();
-                    }
-                    PrivateKeyOptions::Omit => {}
+        if self.private_keys.is_some() {
+            match private_key_options {
+                PrivateKeyOptions::Include => {
+                    let assertion_envelope = self.private_key_assertion_envelope();
+                    envelope = envelope.add_assertion_envelope(assertion_envelope).unwrap();
                 }
+                PrivateKeyOptions::Elide => {
+                    let assertion_envelope = self.private_key_assertion_envelope().elide();
+                    envelope = envelope.add_assertion_envelope(assertion_envelope).unwrap();
+                }
+                PrivateKeyOptions::Omit => {}
             }
+        }
 
         envelope = envelope.add_nonempty_string_assertion(known_values::NAME, self.name);
 
@@ -239,7 +258,7 @@ impl ReferenceProvider for &Key {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bc_components::{PrivateKeysProvider, PublicKeysProvider};
+    use bc_components::{ PrivateKeysProvider, PublicKeysProvider };
     use bc_envelope::PrivateKeyBase;
     use bc_rand::make_fake_random_number_generator;
     use crate::Privilege;
@@ -255,7 +274,9 @@ mod tests {
         let public_keys = private_key_base.public_keys();
 
         let resolver1 = URI::new("https://resolver.example.com").unwrap();
-        let resolver2 = URI::new("btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33").unwrap();
+        let resolver2 = URI::new(
+            "btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33"
+        ).unwrap();
         let resolvers: HashSet<URI> = vec![resolver1, resolver2].into_iter().collect();
 
         let mut key = Key::new(public_keys);
@@ -267,14 +288,14 @@ mod tests {
         let key2 = Key::try_from(&envelope).unwrap();
         assert_eq!(key, key2);
 
-        assert_eq!(envelope.format(),
-        indoc! {r#"
-        PublicKeys(eb9b1cae) [
-            'allow': 'All'
-            'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
-            'endpoint': URI(https://resolver.example.com)
-            'name': "Alice's key"
-        ]
+        #[rustfmt::skip]
+        assert_eq!(envelope.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                'allow': 'All'
+                'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
+                'endpoint': URI(https://resolver.example.com)
+                'name': "Alice's key"
+            ]
         "#}.trim());
     }
 
@@ -292,7 +313,10 @@ mod tests {
         // all permissions.
         //
 
-        let key_including_private_key = Key::new_with_private_keys(private_keys.clone(), public_keys.clone());
+        let key_including_private_key = Key::new_with_private_keys(
+            private_keys.clone(),
+            public_keys.clone()
+        );
 
         //
         // Permissions given to a `Key` constructed from a `PublicKeys` are
@@ -306,11 +330,10 @@ mod tests {
         // key because it is sensitive.
         //
 
-        let envelope_omitting_private_key = key_including_private_key.clone()
-            .into_envelope();
+        let envelope_omitting_private_key = key_including_private_key.clone().into_envelope();
 
-        assert_eq!(envelope_omitting_private_key.format(),
-        indoc! {r#"
+        #[rustfmt::skip]
+        assert_eq!(envelope_omitting_private_key.format(), indoc! {r#"
             PublicKeys(eb9b1cae) [
                 'allow': 'All'
             ]
@@ -330,11 +353,12 @@ mod tests {
         // The 'privateKey' assertion is salted to decorrelate the private key.
         //
 
-        let envelope_including_private_key = key_including_private_key.clone()
+        let envelope_including_private_key = key_including_private_key
+            .clone()
             .into_envelope_opt(PrivateKeyOptions::Include);
 
-        assert_eq!(envelope_including_private_key.format(),
-        indoc! {r#"
+        #[rustfmt::skip]
+        assert_eq!(envelope_including_private_key.format(), indoc! {r#"
             PublicKeys(eb9b1cae) [
                 {
                     'privateKey': PrivateKeys(fb7c8739)
@@ -357,11 +381,12 @@ mod tests {
         // The private key assertion can be elided.
         //
 
-        let envelope_eliding_private_key = key_including_private_key.clone()
+        let envelope_eliding_private_key = key_including_private_key
+            .clone()
             .into_envelope_opt(PrivateKeyOptions::Elide);
 
-        assert_eq!(envelope_eliding_private_key.format(),
-        indoc! {r#"
+        #[rustfmt::skip]
+        assert_eq!(envelope_eliding_private_key.format(), indoc! {r#"
             PublicKeys(eb9b1cae) [
                 'allow': 'All'
                 ELIDED

@@ -100,12 +100,13 @@ mod tests {
         let alice_xid_document = XIDDocument::from(&alice_private_key_base);
 
         let envelope = alice_xid_document.clone().into_envelope();
+        #[rustfmt::skip]
         let expected = (indoc! {r#"
-        XID(71274df1) [
-            'key': PublicKeys(eb9b1cae) [
-                'allow': 'All'
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    'allow': 'All'
+                ]
             ]
-        ]
         "#}).trim();
         assert_eq!(envelope.format(), expected);
 
@@ -115,12 +116,13 @@ mod tests {
         let bob_xid_document = XIDDocument::from(bob_public_keys);
 
         let envelope = bob_xid_document.clone().into_envelope();
+        #[rustfmt::skip]
         let expected = (indoc! {r#"
-        XID(7c30cafe) [
-            'key': PublicKeys(b8164d99) [
-                'allow': 'All'
+            XID(7c30cafe) [
+                'key': PublicKeys(b8164d99) [
+                    'allow': 'All'
+                ]
             ]
-        ]
         "#}).trim();
         assert_eq!(envelope.format(), expected);
 
@@ -134,13 +136,14 @@ mod tests {
         let bob_unresolved_delegate_2 = Delegate::try_from(&envelope).unwrap();
         assert_eq!(bob_unresolved_delegate, bob_unresolved_delegate_2);
 
+        #[rustfmt::skip]
         let expected = (indoc! {r#"
-        {
-            XID(7c30cafe)
-        } [
-            'allow': 'Encrypt'
-            'allow': 'Sign'
-        ]
+            {
+                XID(7c30cafe)
+            } [
+                'allow': 'Encrypt'
+                'allow': 'Sign'
+            ]
         "#}
         ).trim();
         assert_eq!(envelope.format(), expected);
@@ -148,18 +151,19 @@ mod tests {
         let mut alice_xid_document_with_unresolved_delegate = alice_xid_document.clone();
         alice_xid_document_with_unresolved_delegate.add_delegate(bob_unresolved_delegate).unwrap();
         let envelope = alice_xid_document_with_unresolved_delegate.clone().into_envelope();
+        #[rustfmt::skip]
         let expected = (indoc! {r#"
-        XID(71274df1) [
-            'delegate': {
-                XID(7c30cafe)
-            } [
-                'allow': 'Encrypt'
-                'allow': 'Sign'
+            XID(71274df1) [
+                'delegate': {
+                    XID(7c30cafe)
+                } [
+                    'allow': 'Encrypt'
+                    'allow': 'Sign'
+                ]
+                'key': PublicKeys(eb9b1cae) [
+                    'allow': 'All'
+                ]
             ]
-            'key': PublicKeys(eb9b1cae) [
-                'allow': 'All'
-            ]
-        ]
         "#}).trim();
         assert_eq!(envelope.format(), expected);
 
@@ -172,27 +176,9 @@ mod tests {
         let bob_delegate_2 = Delegate::try_from(&envelope).unwrap();
         assert_eq!(bob_delegate, bob_delegate_2);
 
+        #[rustfmt::skip]
         let expected = (indoc! {r#"
-        {
-            XID(7c30cafe) [
-                'key': PublicKeys(b8164d99) [
-                    'allow': 'All'
-                ]
-            ]
-        } [
-            'allow': 'Encrypt'
-            'allow': 'Sign'
-        ]
-        "#}).trim();
-        assert_eq!(envelope.format(), expected);
-
-        // Add Bob as a Delegate to Alice's XIDDocument
-        let mut alice_xid_document_with_delegate = alice_xid_document.clone();
-        alice_xid_document_with_delegate.add_delegate(bob_delegate).unwrap();
-        let envelope = alice_xid_document_with_delegate.clone().into_envelope();
-        let expected = (indoc! {r#"
-        XID(71274df1) [
-            'delegate': {
+            {
                 XID(7c30cafe) [
                     'key': PublicKeys(b8164d99) [
                         'allow': 'All'
@@ -202,10 +188,30 @@ mod tests {
                 'allow': 'Encrypt'
                 'allow': 'Sign'
             ]
-            'key': PublicKeys(eb9b1cae) [
-                'allow': 'All'
+        "#}).trim();
+        assert_eq!(envelope.format(), expected);
+
+        // Add Bob as a Delegate to Alice's XIDDocument
+        let mut alice_xid_document_with_delegate = alice_xid_document.clone();
+        alice_xid_document_with_delegate.add_delegate(bob_delegate).unwrap();
+        let envelope = alice_xid_document_with_delegate.clone().into_envelope();
+        #[rustfmt::skip]
+        let expected = (indoc! {r#"
+            XID(71274df1) [
+                'delegate': {
+                    XID(7c30cafe) [
+                        'key': PublicKeys(b8164d99) [
+                            'allow': 'All'
+                        ]
+                    ]
+                } [
+                    'allow': 'Encrypt'
+                    'allow': 'Sign'
+                ]
+                'key': PublicKeys(eb9b1cae) [
+                    'allow': 'All'
+                ]
             ]
-        ]
         "#}).trim();
         assert_eq!(envelope.format(), expected);
     }

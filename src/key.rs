@@ -170,10 +170,10 @@ impl Key {
             let Some(private_key_assertion) =
                 envelope.optional_assertion_with_predicate(PRIVATE_KEY)?
         {
-            println!(
-                "private_key_assertion: {}",
-                private_key_assertion.subject().try_object()?.format()
-            );
+            // println!(
+            //     "private_key_assertion: {}",
+            //     private_key_assertion.subject().try_object()?.format()
+            // );
             let private_keys_cbor = private_key_assertion.subject().try_object()?.try_leaf()?;
             let private_keys = PrivateKeys::try_from(private_keys_cbor)?;
             let salt = private_key_assertion.extract_object_for_predicate::<Salt>(

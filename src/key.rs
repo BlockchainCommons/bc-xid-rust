@@ -15,9 +15,9 @@ use bc_components::{
     URI,
 };
 use bc_envelope::{ prelude::*, PrivateKeyBase };
-use known_values::{ ENDPOINT, PRIVATE_KEY, NAME };
+use known_values::{ ENDPOINT, PRIVATE_KEY, NICKNAME };
 
-use crate::{ HasName, HasPermissions, Privilege };
+use crate::{ HasNickname, HasPermissions, Privilege };
 
 use super::Permissions;
 
@@ -25,7 +25,7 @@ use super::Permissions;
 pub struct Key {
     public_keys: PublicKeys,
     private_keys: Option<(PrivateKeys, Salt)>,
-    name: String,
+    nickname: String,
     endpoints: HashSet<URI>,
     permissions: Permissions,
 }
@@ -53,7 +53,7 @@ impl Key {
         Self {
             public_keys: public_keys.as_ref().clone(),
             private_keys: None,
-            name: String::new(),
+            nickname: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new(),
         }
@@ -63,7 +63,7 @@ impl Key {
         Self {
             public_keys: public_keys.as_ref().clone(),
             private_keys: None,
-            name: String::new(),
+            nickname: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
@@ -74,7 +74,7 @@ impl Key {
         Self {
             public_keys,
             private_keys: Some((private_keys, salt)),
-            name: String::new(),
+            nickname: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
         }
@@ -131,13 +131,13 @@ impl Key {
     }
 }
 
-impl HasName for Key {
-    fn name(&self) -> &str {
-        &self.name
+impl HasNickname for Key {
+    fn nickname(&self) -> &str {
+        &self.nickname
     }
 
-    fn set_name(&mut self, name: impl Into<String>) {
-        self.name = name.into();
+    fn set_nickname(&mut self, nickname: impl Into<String>) {
+        self.nickname = nickname.into();
     }
 }
 
@@ -200,7 +200,7 @@ impl Key {
             }
         }
 
-        envelope = envelope.add_nonempty_string_assertion(known_values::NAME, self.name);
+        envelope = envelope.add_nonempty_string_assertion(known_values::NICKNAME, self.nickname);
 
         envelope = self.endpoints
             .into_iter()
@@ -223,7 +223,7 @@ impl TryFrom<&Envelope> for Key {
         let public_keys = PublicKeys::try_from(envelope.subject().try_leaf()?)?;
         let private_keys = Key::extract_optional_private_key(envelope)?;
 
-        let name = envelope.extract_object_for_predicate_with_default(NAME, String::new())?;
+        let nickname = envelope.extract_object_for_predicate_with_default(NICKNAME, String::new())?;
 
         let mut endpoints = HashSet::new();
         for assertion in envelope.assertions_with_predicate(ENDPOINT) {
@@ -234,7 +234,7 @@ impl TryFrom<&Envelope> for Key {
         Ok(Self {
             public_keys,
             private_keys,
-            name,
+            nickname,
             endpoints,
             permissions,
         })
@@ -282,7 +282,7 @@ mod tests {
         let mut key = Key::new(public_keys);
         key.endpoints_mut().extend(resolvers);
         key.add_allow(Privilege::All);
-        key.set_name("Alice's key".to_string());
+        key.set_nickname("Alice's key".to_string());
 
         let envelope = key.clone().into_envelope();
         let key2 = Key::try_from(&envelope).unwrap();
@@ -294,7 +294,7 @@ mod tests {
                 'allow': 'All'
                 'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
                 'endpoint': URI(https://resolver.example.com)
-                'name': "Alice's key"
+                'nickname': "Alice's key"
             ]
         "#}.trim());
     }

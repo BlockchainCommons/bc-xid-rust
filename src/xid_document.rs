@@ -2,7 +2,20 @@ use std::collections::HashSet;
 
 use anyhow::{ bail, Error, Result, anyhow };
 use bc_components::{
-    tags::TAG_XID, EncapsulationPublicKey, PrivateKeyBase, PrivateKeys, PrivateKeysProvider, PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Signer, SigningPublicKey, XIDProvider, URI, XID
+    tags::TAG_XID,
+    EncapsulationPublicKey,
+    PrivateKeyBase,
+    PrivateKeys,
+    PrivateKeysProvider,
+    PublicKeys,
+    PublicKeysProvider,
+    Reference,
+    ReferenceProvider,
+    Signer,
+    SigningPublicKey,
+    XIDProvider,
+    URI,
+    XID,
 };
 use dcbor::prelude::*;
 use known_values::{
@@ -20,7 +33,7 @@ use known_values::{
 use provenance_mark::ProvenanceMark;
 use bc_envelope::prelude::*;
 
-use crate::{ HasName, HasPermissions, PrivateKeyOptions, Service };
+use crate::{ HasNickname, HasPermissions, PrivateKeyOptions, Service };
 
 use super::{ Delegate, Key };
 
@@ -53,9 +66,15 @@ impl XIDDocument {
         }
     }
 
-    pub fn new_with_keys(inception_private_keys: PrivateKeys, inception_public_keys: PublicKeys) -> Self {
+    pub fn new_with_keys(
+        inception_private_keys: PrivateKeys,
+        inception_public_keys: PublicKeys
+    ) -> Self {
         let xid = XID::new(inception_public_keys.signing_public_key());
-        let inception_key = Key::new_with_private_keys(inception_private_keys, inception_public_keys);
+        let inception_key = Key::new_with_private_keys(
+            inception_private_keys,
+            inception_public_keys
+        );
         let mut keys = HashSet::new();
         keys.insert(inception_key.clone());
         Self {
@@ -159,7 +178,7 @@ impl XIDDocument {
         name: impl Into<String>
     ) -> Result<()> {
         let mut key = self.take_key(key).ok_or_else(|| anyhow!("Key not found"))?;
-        key.set_name(name);
+        key.set_nickname(name);
         self.add_key(key)
     }
 
@@ -171,9 +190,7 @@ impl XIDDocument {
         if
             let Some(key) = self.keys
                 .iter()
-                .find(|k| {
-                    self.is_inception_signing_key(k.public_keys().signing_public_key())
-                })
+                .find(|k| { self.is_inception_signing_key(k.public_keys().signing_public_key()) })
         {
             Some(key.public_keys().signing_public_key())
         } else {
@@ -638,15 +655,24 @@ impl CBORTaggedDecodable for XIDDocument {
 mod tests {
     use std::collections::HashSet;
 
-    use bc_envelope::{prelude::*, PublicKeys};
+    use bc_envelope::{ prelude::*, PublicKeys };
     use bc_rand::make_fake_random_number_generator;
     use indoc::indoc;
-    use bc_components::{ tags, EncapsulationScheme, PrivateKeyBase, PrivateKeys, PublicKeysProvider, SignatureScheme, XIDProvider, URI, XID };
+    use bc_components::{
+        tags,
+        EncapsulationScheme,
+        PrivateKeyBase,
+        PrivateKeys,
+        PublicKeysProvider,
+        SignatureScheme,
+        XIDProvider,
+        URI,
+        XID,
+    };
     use provenance_mark::{ ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed };
 
     use crate::{
         Delegate,
-        HasName,
         HasPermissions,
         Key,
         PrivateKeyOptions,
@@ -748,7 +774,8 @@ mod tests {
 
         // Create post-quantum keys.
         let (signing_private_key, signing_public_key) = SignatureScheme::MLDSA44.keypair();
-        let (encapsulation_private_key, encapsulation_public_key) = EncapsulationScheme::MLKEM512.keypair();
+        let (encapsulation_private_key, encapsulation_public_key) =
+            EncapsulationScheme::MLKEM512.keypair();
         let private_keys = PrivateKeys::with_keys(signing_private_key, encapsulation_private_key);
         let public_keys = PublicKeys::new(signing_public_key, encapsulation_public_key);
 
@@ -775,8 +802,16 @@ mod tests {
         assert_eq!(xid_document.xid(), xid_document2.xid());
 
         // And the `PublicKeys` should match.
-        let public_keys_1: HashSet<PublicKeys> = xid_document.keys().iter().map(|k| k.public_keys().clone()).collect();
-        let public_keys_2: HashSet<PublicKeys> = xid_document2.keys().iter().map(|k| k.public_keys().clone()).collect();
+        let public_keys_1: HashSet<PublicKeys> = xid_document
+            .keys()
+            .iter()
+            .map(|k| k.public_keys().clone())
+            .collect();
+        let public_keys_2: HashSet<PublicKeys> = xid_document2
+            .keys()
+            .iter()
+            .map(|k| k.public_keys().clone())
+            .collect();
         assert_eq!(public_keys_1, public_keys_2);
     }
 
@@ -1141,7 +1176,7 @@ mod tests {
         service.add_delegate(&bob_xid_document).unwrap();
         service.add_allow(Privilege::Encrypt);
         service.add_allow(Privilege::Sign);
-        service.add_name("Example Service").unwrap();
+        service.set_name("Example Service").unwrap();
         service.add_capability("com.example.messaging").unwrap();
 
         alice_xid_document.add_service(service).unwrap();
@@ -1154,7 +1189,7 @@ mod tests {
                     XID(7c30cafe) [
                         'key': PublicKeys(b8164d99) [
                             'allow': 'All'
-                            'name': "Bob"
+                            'nickname': "Bob"
                         ]
                     ]
                 } [
@@ -1163,7 +1198,7 @@ mod tests {
                 ]
                 'key': PublicKeys(eb9b1cae) [
                     'allow': 'All'
-                    'name': "Alice"
+                    'nickname': "Alice"
                 ]
                 'service': URI(https://example.com) [
                     'allow': 'Encrypt'

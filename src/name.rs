@@ -1,18 +1,18 @@
-use anyhow::{Result, bail};
+use anyhow::{ Result, bail };
 
-pub trait HasName {
-    fn name(&self) -> &str;
+pub trait HasNickname {
+    fn nickname(&self) -> &str;
 
-    fn set_name(&mut self, name: impl Into<String>);
+    fn set_nickname(&mut self, name: impl Into<String>);
 
-    fn add_name(&mut self, name: &str) -> Result<()> {
-        if !self.name().is_empty() {
-            bail!("Duplicate name");
+    fn add_nickname(&mut self, name: &str) -> Result<()> {
+        if !self.nickname().is_empty() {
+            bail!("Duplicate nickname");
         }
         if name.is_empty() {
-            bail!("Name is empty");
+            bail!("Nickname is empty");
         }
-        self.set_name(name);
+        self.set_nickname(name);
 
         Ok(())
     }

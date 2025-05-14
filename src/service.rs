@@ -18,7 +18,7 @@ use bc_envelope::{
 };
 use anyhow::{ Error, Result, bail };
 
-use crate::{ HasName, HasPermissions, Permissions, Privilege };
+use crate::{ HasPermissions, Permissions, Privilege };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
@@ -118,15 +118,21 @@ impl Service {
     pub fn add_delegate(&mut self, delegate: &dyn XIDProvider) -> Result<()> {
         self.add_delegate_reference(delegate.xid().reference())
     }
-}
 
-impl HasName for Service {
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    fn set_name(&mut self, name: impl Into<String>) {
-        self.name = name.into();
+    pub fn set_name(&mut self, name: impl Into<String>) -> Result<()> {
+        if !self.name.is_empty() {
+            bail!("Duplicate name");
+        }
+        let name = name.into();
+        if name.is_empty() {
+            bail!("Name is empty");
+        }
+        self.name = name;
+        Ok(())
     }
 }
 
@@ -197,7 +203,7 @@ impl TryFrom<&Envelope> for Service {
                 }
                 NAME_RAW => {
                     let name = object.try_leaf()?.try_into_text()?;
-                    service.add_name(&name)?;
+                    service.set_name(&name)?;
                 }
                 ALLOW_RAW => {
                     service.add_allow(Privilege::try_from(object)?);
@@ -216,7 +222,7 @@ mod tests {
     use bc_envelope::{ EnvelopeEncodable, PrivateKeyBase };
     use bc_rand::make_fake_random_number_generator;
 
-    use crate::{ HasName, HasPermissions, Privilege, XIDDocument };
+    use crate::{ HasPermissions, Privilege, XIDDocument };
 
     use super::Service;
 
@@ -244,8 +250,7 @@ mod tests {
         service.add_allow(Privilege::Encrypt);
         service.add_allow(Privilege::Sign);
 
-        service.add_name("Example Service").unwrap();
-        assert!(service.add_name("Example Service").is_err());
+        service.set_name("Example Service").unwrap();
 
         service.add_capability("com.example.messaging").unwrap();
         assert!(service.add_capability("com.example.messaging").is_err());
@@ -262,6 +267,7 @@ mod tests {
                 'name': "Example Service"
             ]
         "#}.trim();
+        println!("{}", envelope.format());
         assert_eq!(envelope.format(), expected);
 
         let service2 = Service::try_from(&envelope).unwrap();

@@ -18,7 +18,7 @@ bc-components = "^0.21.0"
 bc-envelope = "^0.28.0"
 bc-ur = "^0.9.0"
 bc-rand = "^0.4.0"
-provenance-mark = { version = "^0.7.0", features = ["envelope"] }
+provenance-mark = { version = "^0.8.0", features = ["envelope"] }
 
 hex = "^0.4.3"
 anyhow = "^1.0.0"

@@ -1,4 +1,4 @@
-use anyhow::{ Result, bail };
+use anyhow::{Result, bail};
 
 pub trait HasNickname {
     fn nickname(&self) -> &str;

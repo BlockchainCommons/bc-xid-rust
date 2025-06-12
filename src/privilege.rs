@@ -1,4 +1,4 @@
-use anyhow::{ bail, Error, Result };
+use anyhow::{Error, Result, bail};
 use bc_envelope::prelude::*;
 use known_values::*;
 
@@ -9,8 +9,6 @@ pub enum Privilege {
 
     //
     // Operational Functions
-    //
-
     /// Authenticate as the subject (e.g., log into services)
     Auth,
 
@@ -31,8 +29,6 @@ pub enum Privilege {
 
     //
     // Management Functions
-    //
-
     /// Delegate priviledges to third parties
     Delegate,
 
@@ -120,7 +116,5 @@ impl TryFrom<Envelope> for Privilege {
 }
 
 impl EnvelopeEncodable for Privilege {
-    fn into_envelope(self) -> Envelope {
-        Envelope::from(&self)
-    }
+    fn into_envelope(self) -> Envelope { Envelope::from(&self) }
 }

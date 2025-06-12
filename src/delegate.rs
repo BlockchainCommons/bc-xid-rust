@@ -1,10 +1,9 @@
-use bc_components::{Reference, ReferenceProvider, XIDProvider, XID};
+use anyhow::{Error, Result};
+use bc_components::{Reference, ReferenceProvider, XID, XIDProvider};
 use bc_envelope::prelude::*;
-use anyhow::{ Error, Result };
 
+use super::{Permissions, Shared, XIDDocument};
 use crate::HasPermissions;
-
-use super::{ Shared, XIDDocument, Permissions };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Delegate {
@@ -26,19 +25,13 @@ impl Delegate {
         }
     }
 
-    pub fn controller(&self) -> &Shared<XIDDocument> {
-        &self.controller
-    }
+    pub fn controller(&self) -> &Shared<XIDDocument> { &self.controller }
 }
 
 impl HasPermissions for Delegate {
-    fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
+    fn permissions(&self) -> &Permissions { &self.permissions }
 
-    fn permissions_mut(&mut self) -> &mut Permissions {
-        &mut self.permissions
-    }
+    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
 }
 
 impl EnvelopeEncodable for Delegate {
@@ -56,10 +49,7 @@ impl TryFrom<&Envelope> for Delegate {
         let permissions = Permissions::try_from_envelope(envelope)?;
         let inner = envelope.unwrap_envelope()?;
         let controller = Shared::new(XIDDocument::try_from(inner)?);
-        Ok(Self {
-            controller,
-            permissions,
-        })
+        Ok(Self { controller, permissions })
     }
 }
 
@@ -72,9 +62,7 @@ impl TryFrom<Envelope> for Delegate {
 }
 
 impl XIDProvider for Delegate {
-    fn xid(&self) -> XID {
-        self.controller.read().xid()
-    }
+    fn xid(&self) -> XID { self.controller.read().xid() }
 }
 
 impl ReferenceProvider for Delegate {
@@ -85,11 +73,12 @@ impl ReferenceProvider for Delegate {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bc_components::{PrivateKeyBase, PublicKeysProvider};
     use bc_rand::make_fake_random_number_generator;
-    use crate::Privilege;
     use indoc::indoc;
+
+    use super::*;
+    use crate::Privilege;
 
     #[test]
     fn test_delegate() {
@@ -126,9 +115,8 @@ mod tests {
         "#}).trim();
         assert_eq!(envelope.format(), expected);
 
-        let mut bob_unresolved_delegate = Delegate::new(
-            XIDDocument::from_xid(bob_xid_document.xid())
-        );
+        let mut bob_unresolved_delegate =
+            Delegate::new(XIDDocument::from_xid(bob_xid_document.xid()));
         bob_unresolved_delegate.add_allow(Privilege::Encrypt);
         bob_unresolved_delegate.add_allow(Privilege::Sign);
 
@@ -148,9 +136,14 @@ mod tests {
         ).trim();
         assert_eq!(envelope.format(), expected);
 
-        let mut alice_xid_document_with_unresolved_delegate = alice_xid_document.clone();
-        alice_xid_document_with_unresolved_delegate.add_delegate(bob_unresolved_delegate).unwrap();
-        let envelope = alice_xid_document_with_unresolved_delegate.clone().into_envelope();
+        let mut alice_xid_document_with_unresolved_delegate =
+            alice_xid_document.clone();
+        alice_xid_document_with_unresolved_delegate
+            .add_delegate(bob_unresolved_delegate)
+            .unwrap();
+        let envelope = alice_xid_document_with_unresolved_delegate
+            .clone()
+            .into_envelope();
         #[rustfmt::skip]
         let expected = (indoc! {r#"
             XID(71274df1) [
@@ -193,7 +186,9 @@ mod tests {
 
         // Add Bob as a Delegate to Alice's XIDDocument
         let mut alice_xid_document_with_delegate = alice_xid_document.clone();
-        alice_xid_document_with_delegate.add_delegate(bob_delegate).unwrap();
+        alice_xid_document_with_delegate
+            .add_delegate(bob_delegate)
+            .unwrap();
         let envelope = alice_xid_document_with_delegate.clone().into_envelope();
         #[rustfmt::skip]
         let expected = (indoc! {r#"

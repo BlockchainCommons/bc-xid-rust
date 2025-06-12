@@ -1,24 +1,18 @@
 use std::collections::HashSet;
 
-use bc_components::{ PublicKeysProvider, Reference, ReferenceProvider, XIDProvider, URI };
-use bc_envelope::{
-    extension::{
-        ALLOW_RAW,
-        CAPABILITY,
-        CAPABILITY_RAW,
-        DELEGATE,
-        DELEGATE_RAW,
-        KEY,
-        KEY_RAW,
-        NAME,
-        NAME_RAW,
-    },
-    Envelope,
-    EnvelopeEncodable,
+use anyhow::{Error, Result, bail};
+use bc_components::{
+    PublicKeysProvider, Reference, ReferenceProvider, URI, XIDProvider,
 };
-use anyhow::{ Error, Result, bail };
+use bc_envelope::{
+    Envelope, EnvelopeEncodable,
+    extension::{
+        ALLOW_RAW, CAPABILITY, CAPABILITY_RAW, DELEGATE, DELEGATE_RAW, KEY,
+        KEY_RAW, NAME, NAME_RAW,
+    },
+};
 
-use crate::{ HasPermissions, Permissions, Privilege };
+use crate::{HasPermissions, Permissions, Privilege};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
@@ -48,13 +42,9 @@ impl Service {
         }
     }
 
-    pub fn uri(&self) -> &URI {
-        &self.uri
-    }
+    pub fn uri(&self) -> &URI { &self.uri }
 
-    pub fn capability(&self) -> &str {
-        &self.capability
-    }
+    pub fn capability(&self) -> &str { &self.capability }
 
     pub fn set_capability(&mut self, capability: impl Into<String>) {
         self.capability = capability.into();
@@ -72,15 +62,16 @@ impl Service {
         Ok(())
     }
 
-    pub fn key_references(&self) -> &HashSet<Reference> {
-        &self.key_references
-    }
+    pub fn key_references(&self) -> &HashSet<Reference> { &self.key_references }
 
     pub fn key_referenecs_mut(&mut self) -> &mut HashSet<Reference> {
         &mut self.key_references
     }
 
-    pub fn add_key_reference(&mut self, key_reference: impl AsRef<Reference>) -> Result<()> {
+    pub fn add_key_reference(
+        &mut self,
+        key_reference: impl AsRef<Reference>,
+    ) -> Result<()> {
         if !self.key_references.contains(key_reference.as_ref()) {
             self.key_references.insert(key_reference.as_ref().clone());
         } else {
@@ -104,10 +95,14 @@ impl Service {
 
     pub fn add_delegate_reference(
         &mut self,
-        delegate_reference: impl AsRef<Reference>
+        delegate_reference: impl AsRef<Reference>,
     ) -> Result<()> {
-        if !self.delegate_references.contains(delegate_reference.as_ref()) {
-            self.delegate_references.insert(delegate_reference.as_ref().clone());
+        if !self
+            .delegate_references
+            .contains(delegate_reference.as_ref())
+        {
+            self.delegate_references
+                .insert(delegate_reference.as_ref().clone());
         } else {
             bail!("Delegate already exists");
         }
@@ -119,9 +114,7 @@ impl Service {
         self.add_delegate_reference(delegate.xid().reference())
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+    pub fn name(&self) -> &str { &self.name }
 
     pub fn set_name(&mut self, name: impl Into<String>) -> Result<()> {
         if !self.name.is_empty() {
@@ -137,30 +130,31 @@ impl Service {
 }
 
 impl HasPermissions for Service {
-    fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
+    fn permissions(&self) -> &Permissions { &self.permissions }
 
-    fn permissions_mut(&mut self) -> &mut Permissions {
-        &mut self.permissions
-    }
+    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
 }
 
 impl EnvelopeEncodable for Service {
     fn into_envelope(self) -> bc_envelope::Envelope {
         let mut envelope = Envelope::new(self.uri);
 
-        envelope = self.key_references
+        envelope = self
+            .key_references
             .iter()
             .cloned()
             .fold(envelope, |envelope, key| envelope.add_assertion(KEY, key));
 
-        envelope = self.delegate_references
+        envelope = self
+            .delegate_references
             .iter()
             .cloned()
-            .fold(envelope, |envelope, delegate| envelope.add_assertion(DELEGATE, delegate));
+            .fold(envelope, |envelope, delegate| {
+                envelope.add_assertion(DELEGATE, delegate)
+            });
 
-        envelope = envelope.add_nonempty_string_assertion(CAPABILITY, self.capability);
+        envelope =
+            envelope.add_nonempty_string_assertion(CAPABILITY, self.capability);
         envelope = envelope.add_nonempty_string_assertion(NAME, self.name);
         self.permissions.add_to_envelope(envelope)
     }
@@ -183,7 +177,8 @@ impl TryFrom<&Envelope> for Service {
         let mut service = Service::new(uri);
 
         for assertion in envelope.assertions() {
-            let predicate = assertion.try_predicate()?.try_known_value()?.value();
+            let predicate =
+                assertion.try_predicate()?.try_known_value()?.value();
             let object = assertion.try_object()?;
             if object.has_assertions() {
                 bail!("Unexpected nested assertions");
@@ -218,13 +213,12 @@ impl TryFrom<&Envelope> for Service {
 
 #[cfg(test)]
 mod tests {
-    use bc_components::{ PublicKeysProvider, URI };
-    use bc_envelope::{ EnvelopeEncodable, PrivateKeyBase };
+    use bc_components::{PublicKeysProvider, URI};
+    use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
     use bc_rand::make_fake_random_number_generator;
 
-    use crate::{ HasPermissions, Privilege, XIDDocument };
-
     use super::Service;
+    use crate::{HasPermissions, Privilege, XIDDocument};
 
     #[test]
     fn test_1() {
@@ -239,7 +233,8 @@ mod tests {
         let bob_public_keys = bob_private_key_base.public_keys();
         let bob_xid_document = XIDDocument::new(bob_public_keys);
 
-        let mut service = Service::new(URI::try_from("https://example.com").unwrap());
+        let mut service =
+            Service::new(URI::try_from("https://example.com").unwrap());
 
         service.add_key(&alice_public_keys).unwrap();
         assert!(service.add_key(&alice_public_keys).is_err());

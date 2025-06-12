@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 use bc_envelope::prelude::*;
-use known_values::{ ALLOW, DENY };
+use known_values::{ALLOW, DENY};
 
 use super::Privilege;
 
@@ -16,13 +16,9 @@ pub trait HasPermissions {
     fn permissions(&self) -> &Permissions;
     fn permissions_mut(&mut self) -> &mut Permissions;
 
-    fn allow(&self) -> &HashSet<Privilege> {
-        &self.permissions().allow
-    }
+    fn allow(&self) -> &HashSet<Privilege> { &self.permissions().allow }
 
-    fn deny(&self) -> &HashSet<Privilege> {
-        &self.permissions().deny
-    }
+    fn deny(&self) -> &HashSet<Privilege> { &self.permissions().deny }
 
     fn allow_mut(&mut self) -> &mut HashSet<Privilege> {
         &mut self.permissions_mut().allow
@@ -56,29 +52,23 @@ pub trait HasPermissions {
 
 impl Permissions {
     pub fn new() -> Self {
-        Self {
-            allow: HashSet::new(),
-            deny: HashSet::new(),
-        }
+        Self { allow: HashSet::new(), deny: HashSet::new() }
     }
 
     pub fn new_allow_all() -> Self {
         let mut allow = HashSet::new();
         allow.insert(Privilege::All);
-        Self {
-            allow,
-            deny: HashSet::new(),
-        }
+        Self { allow, deny: HashSet::new() }
     }
 
     pub fn add_to_envelope(&self, envelope: Envelope) -> Envelope {
         let mut envelope = envelope;
-        envelope = self.allow
-            .iter()
-            .fold(envelope, |envelope, privilege| envelope.add_assertion(ALLOW, privilege));
-        envelope = self.deny
-            .iter()
-            .fold(envelope, |envelope, privilege| envelope.add_assertion(DENY, privilege));
+        envelope = self.allow.iter().fold(envelope, |envelope, privilege| {
+            envelope.add_assertion(ALLOW, privilege)
+        });
+        envelope = self.deny.iter().fold(envelope, |envelope, privilege| {
+            envelope.add_assertion(DENY, privilege)
+        });
         envelope
     }
 
@@ -100,25 +90,20 @@ impl Permissions {
 }
 
 impl HasPermissions for Permissions {
-    fn permissions(&self) -> &Permissions {
-        self
-    }
+    fn permissions(&self) -> &Permissions { self }
 
-    fn permissions_mut(&mut self) -> &mut Permissions {
-        self
-    }
+    fn permissions_mut(&mut self) -> &mut Permissions { self }
 }
 
 impl Default for Permissions {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use indoc::indoc;
+
+    use super::*;
 
     #[test]
     fn permissions() {

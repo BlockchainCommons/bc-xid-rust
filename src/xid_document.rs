@@ -7,7 +7,6 @@ use bc_components::{
     SigningPublicKey, URI, XID, XIDProvider, tags::TAG_XID,
 };
 use bc_envelope::prelude::*;
-use dcbor::prelude::*;
 use known_values::{
     DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW, KEY, KEY_RAW,
     PROVENANCE, PROVENANCE_RAW, SERVICE, SERVICE_RAW,

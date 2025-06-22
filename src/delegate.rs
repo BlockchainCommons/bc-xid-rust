@@ -37,7 +37,7 @@ impl HasPermissions for Delegate {
 impl EnvelopeEncodable for Delegate {
     fn into_envelope(self) -> Envelope {
         let doc = self.controller.read();
-        let envelope = doc.clone().into_envelope().wrap_envelope();
+        let envelope = doc.clone().into_envelope().wrap();
         self.permissions.add_to_envelope(envelope)
     }
 }
@@ -47,7 +47,7 @@ impl TryFrom<&Envelope> for Delegate {
 
     fn try_from(envelope: &Envelope) -> Result<Self> {
         let permissions = Permissions::try_from_envelope(envelope)?;
-        let inner = envelope.unwrap_envelope()?;
+        let inner = envelope.try_unwrap()?;
         let controller = Shared::new(XIDDocument::try_from(inner)?);
         Ok(Self { controller, permissions })
     }

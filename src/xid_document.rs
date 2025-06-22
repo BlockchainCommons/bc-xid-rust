@@ -569,7 +569,7 @@ impl XIDDocument {
     ) -> Result<Self> {
         // Unwrap the envelope and construct a provisional XIDDocument.
         let xid_document =
-            XIDDocument::try_from(&signed_envelope.unwrap_envelope()?)?;
+            XIDDocument::try_from(&signed_envelope.try_unwrap()?)?;
         // Extract the inception key from the provisional XIDDocument, throwing
         // an error if it is missing.
         let inception_key = xid_document

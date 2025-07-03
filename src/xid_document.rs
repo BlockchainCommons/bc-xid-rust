@@ -985,7 +985,7 @@ mod tests {
             ProvenanceMarkResolution::Quartile,
             genesis_seed,
         );
-        let date = dcbor::Date::from_string("2025-01-01").unwrap();
+        let date = Date::from_string("2025-01-01").unwrap();
         let provenance = generator.next(date, None::<String>);
         let xid_document =
             XIDDocument::new_with_provenance(inception_key, provenance);

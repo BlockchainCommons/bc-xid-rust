@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.11.0"
+bc-xid = "0.12.0"
 ```
 
 ## Specification
@@ -48,6 +48,10 @@ Because this library is still in a community review stage, it should not be used
 See [Blockchain Commons' Development Phases](https://github.com/BlockchainCommons/Community/blob/master/release-path.md).
 
 ### Version History
+
+**0.12.0** — 2025-07-03
+- Align to dependencies.
+- Update date type import in XID document tests.
 
 ### Roadmap
 

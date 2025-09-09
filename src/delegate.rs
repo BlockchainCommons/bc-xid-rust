@@ -1,9 +1,8 @@
-use anyhow::{Error, Result};
+use crate::{Error, Result, HasPermissions};
 use bc_components::{Reference, ReferenceProvider, XID, XIDProvider};
 use bc_envelope::prelude::*;
 
 use super::{Permissions, Shared, XIDDocument};
-use crate::HasPermissions;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Delegate {

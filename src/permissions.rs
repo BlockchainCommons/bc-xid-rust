@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anyhow::Result;
+use crate::Result;
 use bc_envelope::prelude::*;
 use known_values::{ALLOW, DENY};
 

@@ -21,7 +21,7 @@ bc-rand = "^0.4.0"
 provenance-mark = { version = "^0.12.0", features = ["envelope"] }
 
 hex = "^0.4.3"
-anyhow = "^1.0.0"
+thiserror = "^2.0"
 
 [dev-dependencies]
 version-sync = "^0.9.0"

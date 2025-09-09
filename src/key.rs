@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anyhow::Result;
+use crate::{Error, Result, HasNickname, HasPermissions, Privilege};
 use bc_components::{
     EncapsulationPublicKey, PrivateKeys, PrivateKeysProvider, PublicKeys,
     PublicKeysProvider, Reference, ReferenceProvider, Salt, SigningPublicKey,
@@ -10,7 +10,6 @@ use bc_envelope::{PrivateKeyBase, prelude::*};
 use known_values::{ENDPOINT, NICKNAME, PRIVATE_KEY};
 
 use super::Permissions;
-use crate::{HasNickname, HasPermissions, Privilege};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Key {
@@ -218,9 +217,9 @@ impl EnvelopeEncodable for Key {
 }
 
 impl TryFrom<&Envelope> for Key {
-    type Error = anyhow::Error;
+    type Error = Error;
 
-    fn try_from(envelope: &Envelope) -> Result<Self, Self::Error> {
+    fn try_from(envelope: &Envelope) -> Result<Self> {
         let public_keys = PublicKeys::try_from(envelope.subject().try_leaf()?)?;
         let private_keys = Key::extract_optional_private_key(envelope)?;
 
@@ -247,9 +246,9 @@ impl TryFrom<&Envelope> for Key {
 }
 
 impl TryFrom<Envelope> for Key {
-    type Error = anyhow::Error;
+    type Error = Error;
 
-    fn try_from(envelope: Envelope) -> Result<Self, Self::Error> {
+    fn try_from(envelope: Envelope) -> Result<Self> {
         Key::try_from(&envelope)
     }
 }

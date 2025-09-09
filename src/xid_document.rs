@@ -1,12 +1,15 @@
 use std::collections::HashSet;
 
-use anyhow::{Error, Result, anyhow, bail};
+use crate::{
+    Error, HasNickname, HasPermissions, PrivateKeyOptions, Result, Service,
+};
 use bc_components::{
     EncapsulationPublicKey, PrivateKeyBase, PrivateKeys, PrivateKeysProvider,
     PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Signer,
     SigningPublicKey, URI, XID, XIDProvider, tags::TAG_XID,
 };
 use bc_envelope::prelude::*;
+use dcbor::prelude::CBORError;
 use known_values::{
     DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW, KEY, KEY_RAW,
     PROVENANCE, PROVENANCE_RAW, SERVICE, SERVICE_RAW,
@@ -14,7 +17,6 @@ use known_values::{
 use provenance_mark::ProvenanceMark;
 
 use super::{Delegate, Key};
-use crate::{HasNickname, HasPermissions, PrivateKeyOptions, Service};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XIDDocument {
@@ -112,13 +114,17 @@ impl XIDDocument {
         self.resolution_methods.take(method.as_ref())
     }
 
-    pub fn keys(&self) -> &HashSet<Key> { &self.keys }
+    pub fn keys(&self) -> &HashSet<Key> {
+        &self.keys
+    }
 
-    pub fn keys_mut(&mut self) -> &mut HashSet<Key> { &mut self.keys }
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
+        &mut self.keys
+    }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
         if self.find_key_by_public_keys(key.public_keys()).is_some() {
-            bail!("Key already exists");
+            return Err(Error::Duplicate { item: "key".to_string() });
         }
         self.keys.insert(key);
         Ok(())
@@ -148,10 +154,10 @@ impl XIDDocument {
 
     pub fn remove_key(&mut self, key: &dyn PublicKeysProvider) -> Result<()> {
         if self.services_reference_key(key) {
-            bail!("Key is referenced by a service");
+            return Err(Error::StillReferenced { item: "key".to_string() });
         }
         if self.take_key(key).is_none() {
-            bail!("Key not found");
+            return Err(Error::NotFound { item: "key".to_string() });
         }
         Ok(())
     }
@@ -161,8 +167,9 @@ impl XIDDocument {
         key: &dyn PublicKeysProvider,
         name: impl Into<String>,
     ) -> Result<()> {
-        let mut key =
-            self.take_key(key).ok_or_else(|| anyhow!("Key not found"))?;
+        let mut key = self
+            .take_key(key)
+            .ok_or_else(|| Error::NotFound { item: "key".to_string() })?;
         key.set_nickname(name);
         self.add_key(key)
     }
@@ -230,7 +237,9 @@ impl XIDDocument {
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
     #[allow(clippy::mutable_key_type)]
-    pub fn delegates(&self) -> &HashSet<Delegate> { &self.delegates }
+    pub fn delegates(&self) -> &HashSet<Delegate> {
+        &self.delegates
+    }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -241,7 +250,7 @@ impl XIDDocument {
 
     pub fn add_delegate(&mut self, delegate: Delegate) -> Result<()> {
         if self.find_delegate_by_xid(&delegate).is_some() {
-            bail!("Delegate already exists");
+            return Err(Error::Duplicate { item: "delegate".to_string() });
         }
         self.delegates.insert(delegate);
 
@@ -283,10 +292,12 @@ impl XIDDocument {
         xid_provider: &dyn XIDProvider,
     ) -> Result<()> {
         if self.services_reference_delegate(xid_provider) {
-            bail!("Delegate is referenced by a service");
+            return Err(Error::StillReferenced {
+                item: "delegate".to_string(),
+            });
         }
         if self.take_delegate(xid_provider).is_none() {
-            bail!("Delegate not found");
+            return Err(Error::NotFound { item: "delegate".to_string() });
         }
         Ok(())
     }
@@ -298,11 +309,13 @@ impl XIDDocument {
         self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
-    pub fn services(&self) -> &HashSet<Service> { &self.services }
+    pub fn services(&self) -> &HashSet<Service> {
+        &self.services
+    }
 
     pub fn add_service(&mut self, service: Service) -> Result<()> {
         if self.find_service_by_uri(service.uri()).is_some() {
-            bail!("Service already exists");
+            return Err(Error::Duplicate { item: "service".to_string() });
         }
         self.services.insert(service);
         Ok(())
@@ -327,19 +340,15 @@ impl XIDDocument {
         if service.key_references().is_empty()
             && service.delegate_references().is_empty()
         {
-            bail!(
-                "No key or delegate references in service '{}'",
-                service.uri()
-            );
+            return Err(Error::NoReferences { uri: service.uri().to_string() });
         }
 
         for key_reference in service.key_references() {
             if self.find_key_by_reference(key_reference).is_none() {
-                bail!(
-                    "Unknown key reference {} in service '{}'",
-                    key_reference,
-                    service.uri()
-                );
+                return Err(Error::UnknownKeyReference {
+                    reference: key_reference.to_string(),
+                    uri: service.uri().to_string(),
+                });
             }
         }
 
@@ -348,16 +357,17 @@ impl XIDDocument {
                 .find_delegate_by_reference(delegate_reference)
                 .is_none()
             {
-                bail!(
-                    "Unknown delegate reference {} in service '{}'",
-                    delegate_reference,
-                    service.uri()
-                );
+                return Err(Error::UnknownDelegateReference {
+                    reference: delegate_reference.to_string(),
+                    uri: service.uri().to_string(),
+                });
             }
         }
 
         if service.permissions().allow().is_empty() {
-            bail!("No permissions in service '{}'", service.uri());
+            return Err(Error::NoPermissions {
+                uri: service.uri().to_string(),
+            });
         }
 
         Ok(())
@@ -368,7 +378,9 @@ impl XIDDocument {
         key: &dyn PublicKeysProvider,
     ) -> Result<()> {
         if self.find_key_by_public_keys(key).is_none() {
-            bail!("Key not found in XID document: {}", key.public_keys());
+            return Err(Error::KeyNotFoundInDocument {
+                key: key.public_keys().to_string(),
+            });
         }
         Ok(())
     }
@@ -378,7 +390,9 @@ impl XIDDocument {
         xid_provider: &dyn XIDProvider,
     ) -> Result<()> {
         if self.find_delegate_by_xid(xid_provider).is_none() {
-            bail!("Delegate not found in XID document: {}", xid_provider.xid());
+            return Err(Error::DelegateNotFoundInDocument {
+                delegate: xid_provider.xid().to_string(),
+            });
         }
         Ok(())
     }
@@ -402,7 +416,7 @@ impl XIDDocument {
 
     pub fn remove_service(&mut self, uri: impl AsRef<URI>) -> Result<()> {
         if !self.services.iter().any(|s| s.uri() == uri.as_ref()) {
-            bail!("Service not found");
+            return Err(Error::NotFound { item: "service".to_string() });
         }
         self.services.retain(|s| s.uri() != uri.as_ref());
         Ok(())
@@ -484,7 +498,7 @@ impl XIDDocument {
                     let method: URI = object
                         .try_leaf()?
                         .try_into()
-                        .map_err(|_| Error::msg("Invalid resolution method"))?;
+                        .map_err(|_| Error::InvalidResolutionMethod)?;
                     xid_document.add_resolution_method(method);
                 }
                 KEY_RAW => {
@@ -502,11 +516,15 @@ impl XIDDocument {
                 PROVENANCE_RAW => {
                     let provenance = ProvenanceMark::try_from(object)?;
                     if xid_document.provenance().is_some() {
-                        bail!("Multiple provenance marks");
+                        return Err(Error::MultipleProvenanceMarks);
                     }
                     xid_document.set_provenance(Some(provenance));
                 }
-                _ => bail!("Unexpected predicate: {}", predicate),
+                _ => {
+                    return Err(Error::UnexpectedPredicate {
+                        predicate: predicate.to_string(),
+                    });
+                }
             }
         }
 
@@ -574,7 +592,7 @@ impl XIDDocument {
         // an error if it is missing.
         let inception_key = xid_document
             .inception_signing_key()
-            .ok_or_else(|| Error::msg("Missing inception key"))?;
+            .ok_or(Error::MissingInceptionKey)?;
         // Verify the signature on the envelope using the inception key.
         signed_envelope.verify(inception_key)?;
         // Extract the XID from the provisional XIDDocument.
@@ -585,29 +603,39 @@ impl XIDDocument {
             // verified.
             Ok(xid_document)
         } else {
-            bail!("Invalid XID")
+            Err(Error::InvalidXid)
         }
     }
 }
 
 impl XIDProvider for XIDDocument {
-    fn xid(&self) -> XID { self.xid }
+    fn xid(&self) -> XID {
+        self.xid
+    }
 }
 
 impl ReferenceProvider for XIDDocument {
-    fn reference(&self) -> Reference { self.xid.reference() }
+    fn reference(&self) -> Reference {
+        self.xid.reference()
+    }
 }
 
 impl AsRef<XIDDocument> for XIDDocument {
-    fn as_ref(&self) -> &XIDDocument { self }
+    fn as_ref(&self) -> &XIDDocument {
+        self
+    }
 }
 
 impl From<XIDDocument> for XID {
-    fn from(doc: XIDDocument) -> Self { doc.xid }
+    fn from(doc: XIDDocument) -> Self {
+        doc.xid
+    }
 }
 
 impl From<XID> for XIDDocument {
-    fn from(xid: XID) -> Self { XIDDocument::from_xid(xid) }
+    fn from(xid: XID) -> Self {
+        XIDDocument::from_xid(xid)
+    }
 }
 
 impl From<PublicKeys> for XIDDocument {
@@ -629,7 +657,9 @@ impl From<&PrivateKeyBase> for XIDDocument {
 }
 
 impl EnvelopeEncodable for XIDDocument {
-    fn into_envelope(self) -> Envelope { self.to_unsigned_envelope() }
+    fn into_envelope(self) -> Envelope {
+        self.to_unsigned_envelope()
+    }
 }
 
 impl TryFrom<&Envelope> for XIDDocument {
@@ -649,11 +679,15 @@ impl TryFrom<Envelope> for XIDDocument {
 }
 
 impl CBORTagged for XIDDocument {
-    fn cbor_tags() -> Vec<Tag> { tags_for_values(&[TAG_XID]) }
+    fn cbor_tags() -> Vec<Tag> {
+        tags_for_values(&[TAG_XID])
+    }
 }
 
 impl From<XIDDocument> for CBOR {
-    fn from(value: XIDDocument) -> Self { value.tagged_cbor() }
+    fn from(value: XIDDocument) -> Self {
+        value.tagged_cbor()
+    }
 }
 
 impl CBORTaggedEncodable for XIDDocument {
@@ -680,7 +714,13 @@ impl CBORTaggedDecodable for XIDDocument {
             return Ok(Self::from_xid(xid));
         }
 
-        Ok(Envelope::try_from(cbor)?.try_into()?)
+        let envelope = Envelope::try_from(cbor)?;
+        let xid_doc: Self =
+            envelope.try_into().map_err(|e: Error| match e {
+                Error::Cbor(cbor_err) => cbor_err,
+                _ => CBORError::msg(e.to_string()),
+            })?;
+        Ok(xid_doc)
     }
 }
 

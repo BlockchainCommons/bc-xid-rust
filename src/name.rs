@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use crate::{Error, Result};
 
 pub trait HasNickname {
     fn nickname(&self) -> &str;
@@ -7,10 +7,10 @@ pub trait HasNickname {
 
     fn add_nickname(&mut self, name: &str) -> Result<()> {
         if !self.nickname().is_empty() {
-            bail!("Duplicate nickname");
+            return Err(Error::Duplicate { item: "nickname".to_string() });
         }
         if name.is_empty() {
-            bail!("Nickname is empty");
+            return Err(Error::EmptyValue { field: "nickname".to_string() });
         }
         self.set_nickname(name);
 

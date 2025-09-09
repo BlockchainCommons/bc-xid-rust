@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use anyhow::{Error, Result, bail};
+use crate::{Error, HasPermissions, Permissions, Privilege, Result};
 use bc_components::{
     PublicKeysProvider, Reference, ReferenceProvider, URI, XIDProvider,
 };
@@ -11,8 +11,6 @@ use bc_envelope::{
         KEY_RAW, NAME, NAME_RAW,
     },
 };
-
-use crate::{HasPermissions, Permissions, Privilege};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
@@ -42,9 +40,13 @@ impl Service {
         }
     }
 
-    pub fn uri(&self) -> &URI { &self.uri }
+    pub fn uri(&self) -> &URI {
+        &self.uri
+    }
 
-    pub fn capability(&self) -> &str { &self.capability }
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
 
     pub fn set_capability(&mut self, capability: impl Into<String>) {
         self.capability = capability.into();
@@ -52,17 +54,19 @@ impl Service {
 
     pub fn add_capability(&mut self, capability: &str) -> Result<()> {
         if !self.capability.is_empty() {
-            bail!("Duplicate capability");
+            return Err(Error::Duplicate { item: "capability".to_string() });
         }
         if capability.is_empty() {
-            bail!("Capability is empty");
+            return Err(Error::EmptyValue { field: "capability".to_string() });
         }
         self.set_capability(capability);
 
         Ok(())
     }
 
-    pub fn key_references(&self) -> &HashSet<Reference> { &self.key_references }
+    pub fn key_references(&self) -> &HashSet<Reference> {
+        &self.key_references
+    }
 
     pub fn key_referenecs_mut(&mut self) -> &mut HashSet<Reference> {
         &mut self.key_references
@@ -75,7 +79,7 @@ impl Service {
         if !self.key_references.contains(key_reference.as_ref()) {
             self.key_references.insert(key_reference.as_ref().clone());
         } else {
-            bail!("Key already exists");
+            return Err(Error::Duplicate { item: "key reference".to_string() });
         }
 
         Ok(())
@@ -104,7 +108,9 @@ impl Service {
             self.delegate_references
                 .insert(delegate_reference.as_ref().clone());
         } else {
-            bail!("Delegate already exists");
+            return Err(Error::Duplicate {
+                item: "delegate reference".to_string(),
+            });
         }
 
         Ok(())
@@ -114,15 +120,17 @@ impl Service {
         self.add_delegate_reference(delegate.xid().reference())
     }
 
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
     pub fn set_name(&mut self, name: impl Into<String>) -> Result<()> {
         if !self.name.is_empty() {
-            bail!("Duplicate name");
+            return Err(Error::Duplicate { item: "name".to_string() });
         }
         let name = name.into();
         if name.is_empty() {
-            bail!("Name is empty");
+            return Err(Error::EmptyValue { field: "name".to_string() });
         }
         self.name = name;
         Ok(())
@@ -130,9 +138,13 @@ impl Service {
 }
 
 impl HasPermissions for Service {
-    fn permissions(&self) -> &Permissions { &self.permissions }
+    fn permissions(&self) -> &Permissions {
+        &self.permissions
+    }
 
-    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
+    fn permissions_mut(&mut self) -> &mut Permissions {
+        &mut self.permissions
+    }
 }
 
 impl EnvelopeEncodable for Service {
@@ -163,7 +175,7 @@ impl EnvelopeEncodable for Service {
 impl TryFrom<Envelope> for Service {
     type Error = Error;
 
-    fn try_from(envelope: Envelope) -> Result<Self, Self::Error> {
+    fn try_from(envelope: Envelope) -> Result<Self> {
         Self::try_from(&envelope)
     }
 }
@@ -171,7 +183,7 @@ impl TryFrom<Envelope> for Service {
 impl TryFrom<&Envelope> for Service {
     type Error = Error;
 
-    fn try_from(envelope: &Envelope) -> Result<Self, Self::Error> {
+    fn try_from(envelope: &Envelope) -> Result<Self> {
         let uri: URI = envelope.subject().try_leaf()?.try_into()?;
 
         let mut service = Service::new(uri);
@@ -181,7 +193,7 @@ impl TryFrom<&Envelope> for Service {
                 assertion.try_predicate()?.try_known_value()?.value();
             let object = assertion.try_object()?;
             if object.has_assertions() {
-                bail!("Unexpected nested assertions");
+                return Err(Error::UnexpectedNestedAssertions);
             }
             match predicate {
                 KEY_RAW => {
@@ -203,7 +215,11 @@ impl TryFrom<&Envelope> for Service {
                 ALLOW_RAW => {
                     service.add_allow(Privilege::try_from(object)?);
                 }
-                _ => bail!("Unexpected predicate: {}", predicate),
+                _ => {
+                    return Err(Error::UnexpectedPredicate {
+                        predicate: predicate.to_string(),
+                    });
+                }
             }
         }
 

@@ -1,4 +1,4 @@
-use anyhow::{Error, Result, bail};
+use crate::{Error, Result};
 use bc_envelope::prelude::*;
 use known_values::*;
 
@@ -94,7 +94,7 @@ impl TryFrom<&KnownValue> for Privilege {
             PRIVILEGE_BURN_RAW => Ok(Self::Burn),
             PRIVILEGE_REVOKE_RAW => Ok(Self::Revoke),
 
-            _ => bail!("Unknown XID privilege"),
+            _ => Err(Error::UnknownPrivilege),
         }
     }
 }

@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use crate::{Error, HasPermissions, Permissions, Privilege, Result};
 use bc_components::{
     PublicKeysProvider, Reference, ReferenceProvider, URI, XIDProvider,
 };
@@ -11,6 +10,8 @@ use bc_envelope::{
         KEY_RAW, NAME, NAME_RAW,
     },
 };
+
+use crate::{Error, HasPermissions, Permissions, Privilege, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
@@ -40,13 +41,9 @@ impl Service {
         }
     }
 
-    pub fn uri(&self) -> &URI {
-        &self.uri
-    }
+    pub fn uri(&self) -> &URI { &self.uri }
 
-    pub fn capability(&self) -> &str {
-        &self.capability
-    }
+    pub fn capability(&self) -> &str { &self.capability }
 
     pub fn set_capability(&mut self, capability: impl Into<String>) {
         self.capability = capability.into();
@@ -64,9 +61,7 @@ impl Service {
         Ok(())
     }
 
-    pub fn key_references(&self) -> &HashSet<Reference> {
-        &self.key_references
-    }
+    pub fn key_references(&self) -> &HashSet<Reference> { &self.key_references }
 
     pub fn key_referenecs_mut(&mut self) -> &mut HashSet<Reference> {
         &mut self.key_references
@@ -120,9 +115,7 @@ impl Service {
         self.add_delegate_reference(delegate.xid().reference())
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
+    pub fn name(&self) -> &str { &self.name }
 
     pub fn set_name(&mut self, name: impl Into<String>) -> Result<()> {
         if !self.name.is_empty() {
@@ -138,13 +131,9 @@ impl Service {
 }
 
 impl HasPermissions for Service {
-    fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
+    fn permissions(&self) -> &Permissions { &self.permissions }
 
-    fn permissions_mut(&mut self) -> &mut Permissions {
-        &mut self.permissions
-    }
+    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
 }
 
 impl EnvelopeEncodable for Service {

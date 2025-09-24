@@ -1,6 +1,7 @@
-use crate::{Error, Result};
 use bc_envelope::prelude::*;
 use known_values::*;
+
+use crate::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Privilege {

@@ -1,8 +1,5 @@
 use std::collections::HashSet;
 
-use crate::{
-    Error, HasNickname, HasPermissions, PrivateKeyOptions, Result, Service,
-};
 use bc_components::{
     EncapsulationPublicKey, PrivateKeyBase, PrivateKeys, PrivateKeysProvider,
     PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Signer,
@@ -17,6 +14,9 @@ use known_values::{
 use provenance_mark::ProvenanceMark;
 
 use super::{Delegate, Key};
+use crate::{
+    Error, HasNickname, HasPermissions, PrivateKeyOptions, Result, Service,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XIDDocument {
@@ -114,13 +114,9 @@ impl XIDDocument {
         self.resolution_methods.take(method.as_ref())
     }
 
-    pub fn keys(&self) -> &HashSet<Key> {
-        &self.keys
-    }
+    pub fn keys(&self) -> &HashSet<Key> { &self.keys }
 
-    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
-        &mut self.keys
-    }
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> { &mut self.keys }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
         if self.find_key_by_public_keys(key.public_keys()).is_some() {
@@ -237,9 +233,7 @@ impl XIDDocument {
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
     #[allow(clippy::mutable_key_type)]
-    pub fn delegates(&self) -> &HashSet<Delegate> {
-        &self.delegates
-    }
+    pub fn delegates(&self) -> &HashSet<Delegate> { &self.delegates }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -309,9 +303,7 @@ impl XIDDocument {
         self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
-    pub fn services(&self) -> &HashSet<Service> {
-        &self.services
-    }
+    pub fn services(&self) -> &HashSet<Service> { &self.services }
 
     pub fn add_service(&mut self, service: Service) -> Result<()> {
         if self.find_service_by_uri(service.uri()).is_some() {
@@ -609,33 +601,23 @@ impl XIDDocument {
 }
 
 impl XIDProvider for XIDDocument {
-    fn xid(&self) -> XID {
-        self.xid
-    }
+    fn xid(&self) -> XID { self.xid }
 }
 
 impl ReferenceProvider for XIDDocument {
-    fn reference(&self) -> Reference {
-        self.xid.reference()
-    }
+    fn reference(&self) -> Reference { self.xid.reference() }
 }
 
 impl AsRef<XIDDocument> for XIDDocument {
-    fn as_ref(&self) -> &XIDDocument {
-        self
-    }
+    fn as_ref(&self) -> &XIDDocument { self }
 }
 
 impl From<XIDDocument> for XID {
-    fn from(doc: XIDDocument) -> Self {
-        doc.xid
-    }
+    fn from(doc: XIDDocument) -> Self { doc.xid }
 }
 
 impl From<XID> for XIDDocument {
-    fn from(xid: XID) -> Self {
-        XIDDocument::from_xid(xid)
-    }
+    fn from(xid: XID) -> Self { XIDDocument::from_xid(xid) }
 }
 
 impl From<PublicKeys> for XIDDocument {
@@ -657,9 +639,7 @@ impl From<&PrivateKeyBase> for XIDDocument {
 }
 
 impl EnvelopeEncodable for XIDDocument {
-    fn into_envelope(self) -> Envelope {
-        self.to_unsigned_envelope()
-    }
+    fn into_envelope(self) -> Envelope { self.to_unsigned_envelope() }
 }
 
 impl TryFrom<&Envelope> for XIDDocument {
@@ -679,15 +659,11 @@ impl TryFrom<Envelope> for XIDDocument {
 }
 
 impl CBORTagged for XIDDocument {
-    fn cbor_tags() -> Vec<Tag> {
-        tags_for_values(&[TAG_XID])
-    }
+    fn cbor_tags() -> Vec<Tag> { tags_for_values(&[TAG_XID]) }
 }
 
 impl From<XIDDocument> for CBOR {
-    fn from(value: XIDDocument) -> Self {
-        value.tagged_cbor()
-    }
+    fn from(value: XIDDocument) -> Self { value.tagged_cbor() }
 }
 
 impl CBORTaggedEncodable for XIDDocument {

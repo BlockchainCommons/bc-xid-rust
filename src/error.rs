@@ -1,5 +1,5 @@
-use thiserror::Error;
 use dcbor::prelude::CBORError;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {

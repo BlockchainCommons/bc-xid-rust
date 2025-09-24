@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use crate::{Error, Result, HasNickname, HasPermissions, Privilege};
 use bc_components::{
     EncapsulationPublicKey, PrivateKeys, PrivateKeysProvider, PublicKeys,
     PublicKeysProvider, Reference, ReferenceProvider, Salt, SigningPublicKey,
@@ -10,6 +9,7 @@ use bc_envelope::{PrivateKeyBase, prelude::*};
 use known_values::{ENDPOINT, NICKNAME, PRIVATE_KEY};
 
 use super::Permissions;
+use crate::{Error, HasNickname, HasPermissions, Privilege, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Key {
@@ -248,9 +248,7 @@ impl TryFrom<&Envelope> for Key {
 impl TryFrom<Envelope> for Key {
     type Error = Error;
 
-    fn try_from(envelope: Envelope) -> Result<Self> {
-        Key::try_from(&envelope)
-    }
+    fn try_from(envelope: Envelope) -> Result<Self> { Key::try_from(&envelope) }
 }
 
 impl ReferenceProvider for &Key {

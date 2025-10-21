@@ -114,9 +114,13 @@ impl XIDDocument {
         self.resolution_methods.take(method.as_ref())
     }
 
-    pub fn keys(&self) -> &HashSet<Key> { &self.keys }
+    pub fn keys(&self) -> &HashSet<Key> {
+        &self.keys
+    }
 
-    pub fn keys_mut(&mut self) -> &mut HashSet<Key> { &mut self.keys }
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
+        &mut self.keys
+    }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
         if self.find_key_by_public_keys(key.public_keys()).is_some() {
@@ -223,6 +227,36 @@ impl XIDDocument {
         }
     }
 
+    /// Get the private keys from the inception key, if available.
+    ///
+    /// Returns `None` if there is no inception key or if the inception key
+    /// does not have private key material (e.g., if it was encrypted and not
+    /// decrypted).
+    pub fn inception_private_keys(&self) -> Option<&PrivateKeys> {
+        self.inception_key().and_then(|key| key.private_keys())
+    }
+
+    /// Extract private keys from an envelope containing an encrypted
+    /// XIDDocument.
+    ///
+    /// This is a convenience method that loads the document with the password
+    /// and returns the inception key's private keys if available.
+    ///
+    /// Returns `None` if:
+    /// - The document has no inception key
+    /// - The inception key has no private key material
+    /// - The password is incorrect
+    pub fn extract_inception_private_keys_from_envelope(
+        envelope: &Envelope,
+        password: &[u8],
+    ) -> Result<Option<PrivateKeys>> {
+        let doc = Self::from_unsigned_envelope_with_password(
+            envelope,
+            Some(password),
+        )?;
+        Ok(doc.inception_private_keys().cloned())
+    }
+
     pub fn is_empty(&self) -> bool {
         self.resolution_methods.is_empty()
             && self.keys.is_empty()
@@ -233,7 +267,9 @@ impl XIDDocument {
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
     #[allow(clippy::mutable_key_type)]
-    pub fn delegates(&self) -> &HashSet<Delegate> { &self.delegates }
+    pub fn delegates(&self) -> &HashSet<Delegate> {
+        &self.delegates
+    }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -303,7 +339,9 @@ impl XIDDocument {
         self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
-    pub fn services(&self) -> &HashSet<Service> { &self.services }
+    pub fn services(&self) -> &HashSet<Service> {
+        &self.services
+    }
 
     pub fn add_service(&mut self, service: Service) -> Result<()> {
         if self.find_service_by_uri(service.uri()).is_some() {
@@ -443,8 +481,10 @@ impl XIDDocument {
 
         // Add an assertion for each key in the set.
         envelope = self.keys.iter().cloned().fold(envelope, |envelope, key| {
-            envelope
-                .add_assertion(KEY, key.into_envelope_opt(private_key_options))
+            envelope.add_assertion(
+                KEY,
+                key.into_envelope_opt(private_key_options.clone()),
+            )
         });
 
         // Add an assertion for each delegate.
@@ -473,6 +513,18 @@ impl XIDDocument {
     }
 
     pub fn from_unsigned_envelope(envelope: &Envelope) -> Result<Self> {
+        Self::from_unsigned_envelope_with_password(envelope, None)
+    }
+
+    /// Extract an `XIDDocument` from an envelope, optionally providing a
+    /// password to decrypt encrypted private keys.
+    ///
+    /// If private keys are encrypted and no password is provided, the keys
+    /// will be stored without their private key material.
+    pub fn from_unsigned_envelope_with_password(
+        envelope: &Envelope,
+        password: Option<&[u8]>,
+    ) -> Result<Self> {
         //
         // This technique is more robust than the commented-out technique below,
         // because it will fail if there are unexpected attributes in the
@@ -494,7 +546,7 @@ impl XIDDocument {
                     xid_document.add_resolution_method(method);
                 }
                 KEY_RAW => {
-                    let key = Key::try_from(object)?;
+                    let key = Key::try_from_envelope(&object, password)?;
                     xid_document.add_key(key)?;
                 }
                 DELEGATE_RAW => {
@@ -601,23 +653,33 @@ impl XIDDocument {
 }
 
 impl XIDProvider for XIDDocument {
-    fn xid(&self) -> XID { self.xid }
+    fn xid(&self) -> XID {
+        self.xid
+    }
 }
 
 impl ReferenceProvider for XIDDocument {
-    fn reference(&self) -> Reference { self.xid.reference() }
+    fn reference(&self) -> Reference {
+        self.xid.reference()
+    }
 }
 
 impl AsRef<XIDDocument> for XIDDocument {
-    fn as_ref(&self) -> &XIDDocument { self }
+    fn as_ref(&self) -> &XIDDocument {
+        self
+    }
 }
 
 impl From<XIDDocument> for XID {
-    fn from(doc: XIDDocument) -> Self { doc.xid }
+    fn from(doc: XIDDocument) -> Self {
+        doc.xid
+    }
 }
 
 impl From<XID> for XIDDocument {
-    fn from(xid: XID) -> Self { XIDDocument::from_xid(xid) }
+    fn from(xid: XID) -> Self {
+        XIDDocument::from_xid(xid)
+    }
 }
 
 impl From<PublicKeys> for XIDDocument {
@@ -639,7 +701,9 @@ impl From<&PrivateKeyBase> for XIDDocument {
 }
 
 impl EnvelopeEncodable for XIDDocument {
-    fn into_envelope(self) -> Envelope { self.to_unsigned_envelope() }
+    fn into_envelope(self) -> Envelope {
+        self.to_unsigned_envelope()
+    }
 }
 
 impl TryFrom<&Envelope> for XIDDocument {
@@ -659,11 +723,15 @@ impl TryFrom<Envelope> for XIDDocument {
 }
 
 impl CBORTagged for XIDDocument {
-    fn cbor_tags() -> Vec<Tag> { tags_for_values(&[TAG_XID]) }
+    fn cbor_tags() -> Vec<Tag> {
+        tags_for_values(&[TAG_XID])
+    }
 }
 
 impl From<XIDDocument> for CBOR {
-    fn from(value: XIDDocument) -> Self { value.tagged_cbor() }
+    fn from(value: XIDDocument) -> Self {
+        value.tagged_cbor()
+    }
 }
 
 impl CBORTaggedEncodable for XIDDocument {
@@ -705,8 +773,9 @@ mod tests {
     use std::collections::HashSet;
 
     use bc_components::{
-        EncapsulationScheme, PrivateKeyBase, PrivateKeys, PublicKeysProvider,
-        SignatureScheme, URI, XID, XIDProvider, tags,
+        EncapsulationScheme, KeyDerivationMethod, PrivateKeyBase, PrivateKeys,
+        PrivateKeysProvider, PublicKeysProvider, SignatureScheme, URI, XID,
+        XIDProvider, tags,
     };
     use bc_envelope::{PublicKeys, prelude::*};
     use bc_rand::make_fake_random_number_generator;
@@ -1303,5 +1372,721 @@ mod tests {
         alice_xid_document
             .remove_delegate(&bob_xid_document)
             .unwrap();
+    }
+
+    #[test]
+    fn test_xid_document_with_encrypted_private_keys() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
+        let password = b"secure_xid_password";
+
+        //
+        // Create an XID document with private keys.
+        //
+        let xid_document = XIDDocument::new_with_keys(
+            private_keys.clone(),
+            public_keys.clone(),
+        );
+
+        //
+        // Convert to envelope with encrypted private keys using Argon2id.
+        //
+        let envelope_encrypted = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+        );
+
+        // The private key should be encrypted in the envelope.
+        #[rustfmt::skip]
+        assert_eq!(envelope_encrypted.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': ENCRYPTED [
+                            'hasSecret': EncryptedKey(Argon2id)
+                        ]
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // Try to extract without password - should succeed but keys won't have
+        // private key material.
+        //
+        let xid_doc_no_password =
+            XIDDocument::from_unsigned_envelope(&envelope_encrypted).unwrap();
+        let inception_key = xid_doc_no_password.inception_key().unwrap();
+        assert!(inception_key.private_keys().is_none());
+
+        //
+        // Extract with wrong password - should succeed but keys won't have
+        // private key material.
+        //
+        let wrong_password = b"wrong_password";
+        let xid_doc_wrong_password =
+            XIDDocument::from_unsigned_envelope_with_password(
+                &envelope_encrypted,
+                Some(wrong_password),
+            )
+            .unwrap();
+        let inception_key = xid_doc_wrong_password.inception_key().unwrap();
+        assert!(inception_key.private_keys().is_none());
+
+        //
+        // Extract with correct password - should succeed and keys should have
+        // private key material.
+        //
+        let xid_doc_with_password =
+            XIDDocument::from_unsigned_envelope_with_password(
+                &envelope_encrypted,
+                Some(password),
+            )
+            .unwrap();
+        let inception_key = xid_doc_with_password.inception_key().unwrap();
+        assert_eq!(inception_key.private_keys(), Some(&private_keys));
+        assert_eq!(xid_doc_with_password, xid_document);
+    }
+
+    #[test]
+    fn test_xid_document_with_encrypted_multiple_keys() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let password = b"multi_key_password";
+
+        //
+        // Create an XID document with inception key.
+        //
+        let inception_base = PrivateKeyBase::new_using(&mut rng);
+        let mut xid_document =
+            XIDDocument::new_with_private_key_base(inception_base.clone());
+
+        //
+        // Add a second key with private key material.
+        //
+        let second_base = PrivateKeyBase::new_using(&mut rng);
+        let second_key = Key::new_with_private_key_base(second_base.clone());
+        xid_document.add_key(second_key).unwrap();
+
+        //
+        // Convert to envelope with all private keys encrypted using Scrypt.
+        //
+        let envelope_encrypted = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Scrypt,
+                password: password.to_vec(),
+            },
+        );
+
+        //
+        // Extract with password - both keys should have their private key
+        // material.
+        //
+        let xid_doc_decrypted =
+            XIDDocument::from_unsigned_envelope_with_password(
+                &envelope_encrypted,
+                Some(password),
+            )
+            .unwrap();
+
+        assert_eq!(xid_doc_decrypted.keys().len(), 2);
+        for key in xid_doc_decrypted.keys() {
+            assert!(key.private_keys().is_some());
+        }
+        assert_eq!(xid_doc_decrypted, xid_document);
+    }
+
+    #[test]
+    fn test_xid_document_private_key_modes() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+
+        //
+        // Mode 1: Omit private keys (default)
+        //
+        let envelope_omit = xid_document.clone().to_unsigned_envelope();
+        #[rustfmt::skip]
+        assert_eq!(envelope_omit.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        // Can extract, but private keys will be None
+        let doc_omit =
+            XIDDocument::from_unsigned_envelope(&envelope_omit).unwrap();
+        assert!(doc_omit.inception_key().unwrap().private_keys().is_none());
+
+        //
+        // Mode 2: Include private keys in plaintext
+        //
+        let envelope_include = xid_document
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+        #[rustfmt::skip]
+        assert_eq!(envelope_include.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': PrivateKeys(fb7c8739)
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        // Can extract with private keys
+        let doc_include =
+            XIDDocument::from_unsigned_envelope(&envelope_include).unwrap();
+        assert!(
+            doc_include
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .is_some()
+        );
+        assert_eq!(doc_include, xid_document);
+
+        //
+        // Mode 3: Elide private keys (maintains digest tree)
+        //
+        let envelope_elide = xid_document
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Elide);
+        #[rustfmt::skip]
+        assert_eq!(envelope_elide.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    'allow': 'All'
+                    ELIDED
+                ]
+            ]
+        "#}.trim());
+
+        // Can extract, but private keys will be None
+        let doc_elide =
+            XIDDocument::from_unsigned_envelope(&envelope_elide).unwrap();
+        assert!(doc_elide.inception_key().unwrap().private_keys().is_none());
+
+        // Elided envelope is equivalent to included envelope (same digest)
+        assert!(envelope_elide.is_equivalent_to(&envelope_include));
+
+        //
+        // Mode 4: Encrypt private keys with password (Argon2id)
+        //
+        let password = b"test_password_123";
+        let envelope_encrypt = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+        );
+        #[rustfmt::skip]
+        assert_eq!(envelope_encrypt.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': ENCRYPTED [
+                            'hasSecret': EncryptedKey(Argon2id)
+                        ]
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        // Without password, private keys will be None
+        let doc_no_pwd =
+            XIDDocument::from_unsigned_envelope(&envelope_encrypt).unwrap();
+        assert!(doc_no_pwd.inception_key().unwrap().private_keys().is_none());
+
+        // With correct password, can extract with private keys
+        let doc_with_pwd = XIDDocument::from_unsigned_envelope_with_password(
+            &envelope_encrypt,
+            Some(password),
+        )
+        .unwrap();
+        assert!(
+            doc_with_pwd
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .is_some()
+        );
+        assert_eq!(doc_with_pwd, xid_document);
+    }
+
+    #[test]
+    fn test_xid_document_encrypted_with_different_methods() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+        let password = b"test_password";
+
+        //
+        // Test Argon2id (recommended)
+        //
+        let envelope_argon2id = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+        );
+        #[rustfmt::skip]
+        assert_eq!(envelope_argon2id.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': ENCRYPTED [
+                            'hasSecret': EncryptedKey(Argon2id)
+                        ]
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // Test PBKDF2
+        //
+        let envelope_pbkdf2 = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::PBKDF2,
+                password: password.to_vec(),
+            },
+        );
+        #[rustfmt::skip]
+        assert_eq!(envelope_pbkdf2.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': ENCRYPTED [
+                            'hasSecret': EncryptedKey(PBKDF2(SHA256))
+                        ]
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // Test Scrypt
+        //
+        let envelope_scrypt = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Scrypt,
+                password: password.to_vec(),
+            },
+        );
+        #[rustfmt::skip]
+        assert_eq!(envelope_scrypt.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': ENCRYPTED [
+                            'hasSecret': EncryptedKey(Scrypt)
+                        ]
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // All methods should be decryptable with the same password.
+        //
+        for envelope in &[envelope_argon2id, envelope_pbkdf2, envelope_scrypt] {
+            let doc = XIDDocument::from_unsigned_envelope_with_password(
+                envelope,
+                Some(password),
+            )
+            .unwrap();
+            assert_eq!(doc, xid_document);
+        }
+    }
+
+    #[test]
+    fn test_xid_document_reencrypt_with_different_password() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+        let password1 = b"first_password";
+        let password2 = b"second_password";
+
+        //
+        // Encrypt with first password.
+        //
+        let envelope1 = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password1.to_vec(),
+            },
+        );
+
+        //
+        // Load with first password.
+        //
+        let doc_decrypted = XIDDocument::from_unsigned_envelope_with_password(
+            &envelope1,
+            Some(password1),
+        )
+        .unwrap();
+        assert_eq!(doc_decrypted, xid_document);
+        assert!(
+            doc_decrypted
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .is_some()
+        );
+
+        //
+        // Re-encrypt with second password.
+        //
+        let envelope2 = doc_decrypted.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password2.to_vec(),
+            },
+        );
+
+        //
+        // First password should not work on second envelope.
+        //
+        let doc_wrong_pwd = XIDDocument::from_unsigned_envelope_with_password(
+            &envelope2,
+            Some(password1),
+        )
+        .unwrap();
+        assert!(
+            doc_wrong_pwd
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .is_none()
+        );
+
+        //
+        // Second password should work.
+        //
+        let doc_reencrypted =
+            XIDDocument::from_unsigned_envelope_with_password(
+                &envelope2,
+                Some(password2),
+            )
+            .unwrap();
+        assert_eq!(doc_reencrypted, xid_document);
+        assert_eq!(
+            doc_reencrypted
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .unwrap(),
+            &private_keys
+        );
+
+        //
+        // The two encrypted envelopes should be different (different passwords).
+        //
+        assert_ne!(envelope1.ur_string(), envelope2.ur_string());
+
+        //
+        // But the salt should be preserved (same Key identity).
+        //
+        let salt1 = xid_document
+            .inception_key()
+            .unwrap()
+            .private_key_salt()
+            .unwrap();
+        let salt2 = doc_reencrypted
+            .inception_key()
+            .unwrap()
+            .private_key_salt()
+            .unwrap();
+        assert_eq!(salt1, salt2);
+    }
+
+    #[test]
+    fn test_xid_document_change_encryption_method() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+        let password = b"shared_password";
+
+        //
+        // Encrypt with Argon2id.
+        //
+        let envelope_argon2id = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+        );
+
+        //
+        // Load and decrypt.
+        //
+        let doc_decrypted = XIDDocument::from_unsigned_envelope_with_password(
+            &envelope_argon2id,
+            Some(password),
+        )
+        .unwrap();
+
+        //
+        // Re-encrypt with Scrypt.
+        //
+        let envelope_scrypt = doc_decrypted.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Scrypt,
+                password: password.to_vec(),
+            },
+        );
+
+        //
+        // Verify the method changed.
+        //
+        let format_argon2id = envelope_argon2id.format();
+        let format_scrypt = envelope_scrypt.format();
+        assert!(format_argon2id.contains("EncryptedKey(Argon2id)"));
+        assert!(format_scrypt.contains("EncryptedKey(Scrypt)"));
+
+        //
+        // Both should decrypt with the same password.
+        //
+        let doc_from_scrypt =
+            XIDDocument::from_unsigned_envelope_with_password(
+                &envelope_scrypt,
+                Some(password),
+            )
+            .unwrap();
+        assert_eq!(doc_from_scrypt, xid_document);
+
+        //
+        // Salt should be preserved across method changes.
+        //
+        assert_eq!(
+            doc_decrypted.inception_key().unwrap().private_key_salt(),
+            doc_from_scrypt.inception_key().unwrap().private_key_salt()
+        );
+    }
+
+    #[test]
+    fn test_xid_document_encrypt_decrypt_plaintext_roundtrip() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+        let password = b"test_password";
+
+        //
+        // Start with plaintext.
+        //
+        let envelope_plaintext = xid_document
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+        #[rustfmt::skip]
+        assert_eq!(envelope_plaintext.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': PrivateKeys(fb7c8739)
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // Load plaintext document.
+        //
+        let doc_from_plaintext =
+            XIDDocument::from_unsigned_envelope(&envelope_plaintext).unwrap();
+        assert_eq!(doc_from_plaintext, xid_document);
+
+        //
+        // Encrypt it.
+        //
+        let envelope_encrypted = doc_from_plaintext
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
+        #[rustfmt::skip]
+        assert_eq!(envelope_encrypted.format(), indoc! {r#"
+            XID(71274df1) [
+                'key': PublicKeys(eb9b1cae) [
+                    {
+                        'privateKey': ENCRYPTED [
+                            'hasSecret': EncryptedKey(Argon2id)
+                        ]
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        "#}.trim());
+
+        //
+        // Decrypt it.
+        //
+        let doc_decrypted = XIDDocument::from_unsigned_envelope_with_password(
+            &envelope_encrypted,
+            Some(password),
+        )
+        .unwrap();
+        assert_eq!(doc_decrypted, xid_document);
+        assert_eq!(
+            doc_decrypted
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .unwrap(),
+            &private_keys
+        );
+
+        //
+        // Convert back to plaintext.
+        //
+        let envelope_plaintext2 = doc_decrypted
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+
+        //
+        // Should match original plaintext.
+        //
+        let doc_final =
+            XIDDocument::from_unsigned_envelope(&envelope_plaintext2).unwrap();
+        assert_eq!(doc_final, xid_document);
+
+        //
+        // Salt should be consistent throughout.
+        //
+        let salt_original = xid_document
+            .inception_key()
+            .unwrap()
+            .private_key_salt()
+            .unwrap();
+        let salt_final = doc_final
+            .inception_key()
+            .unwrap()
+            .private_key_salt()
+            .unwrap();
+        assert_eq!(salt_original, salt_final);
+    }
+
+    #[test]
+    fn test_xid_document_switch_between_storage_modes() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+        let password = b"mode_switch_password";
+
+        //
+        // Mode 1: Plaintext
+        //
+        let envelope_plaintext = xid_document
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+        let doc1 =
+            XIDDocument::from_unsigned_envelope(&envelope_plaintext).unwrap();
+        assert_eq!(doc1, xid_document);
+
+        //
+        // Mode 2: Encrypted
+        //
+        let envelope_encrypted =
+            doc1.clone()
+                .to_unsigned_envelope_opt(PrivateKeyOptions::Encrypt {
+                    method: KeyDerivationMethod::Argon2id,
+                    password: password.to_vec(),
+                });
+        let doc2 = XIDDocument::from_unsigned_envelope_with_password(
+            &envelope_encrypted,
+            Some(password),
+        )
+        .unwrap();
+        assert_eq!(doc2, xid_document);
+
+        //
+        // Mode 3: Omitted
+        //
+        let envelope_omit = doc2.clone().to_unsigned_envelope();
+        let doc3 = XIDDocument::from_unsigned_envelope(&envelope_omit).unwrap();
+        // Different because private keys are omitted
+        assert_ne!(doc3, xid_document);
+        assert!(doc3.inception_key().unwrap().private_keys().is_none());
+
+        //
+        // Can't get back to full document from omitted.
+        // But if we go back to doc2, we can.
+        //
+        let envelope_plaintext2 = doc2
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+        let doc4 =
+            XIDDocument::from_unsigned_envelope(&envelope_plaintext2).unwrap();
+        assert_eq!(doc4, xid_document);
+
+        //
+        // Mode 4: Elided (maintains digest)
+        //
+        let envelope_elide = doc2
+            .clone()
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Elide);
+        let doc5 =
+            XIDDocument::from_unsigned_envelope(&envelope_elide).unwrap();
+        assert_ne!(doc5, xid_document);
+        assert!(doc5.inception_key().unwrap().private_keys().is_none());
+
+        //
+        // Elided should be equivalent to plaintext (same digest).
+        //
+        assert!(envelope_elide.is_equivalent_to(&envelope_plaintext));
     }
 }

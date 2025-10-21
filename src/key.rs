@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use bc_components::{
-    EncapsulationPublicKey, PrivateKeys, PrivateKeysProvider, PublicKeys,
-    PublicKeysProvider, Reference, ReferenceProvider, Salt, SigningPublicKey,
-    URI, Verifier,
+    EncapsulationPublicKey, KeyDerivationMethod, PrivateKeys,
+    PrivateKeysProvider, PublicKeys, PublicKeysProvider, Reference,
+    ReferenceProvider, Salt, SigningPublicKey, URI, Verifier,
 };
 use bc_envelope::{PrivateKeyBase, prelude::*};
 use known_values::{ENDPOINT, NICKNAME, PRIVATE_KEY};
@@ -31,7 +31,9 @@ impl Verifier for Key {
 }
 
 impl PublicKeysProvider for Key {
-    fn public_keys(&self) -> PublicKeys { self.public_keys.clone() }
+    fn public_keys(&self) -> PublicKeys {
+        self.public_keys.clone()
+    }
 }
 
 impl std::hash::Hash for Key {
@@ -81,12 +83,18 @@ impl Key {
         Self::new_with_private_keys(private_keys, public_keys)
     }
 
-    pub fn public_keys(&self) -> &PublicKeys { &self.public_keys }
+    pub fn public_keys(&self) -> &PublicKeys {
+        &self.public_keys
+    }
 
     pub fn private_keys(&self) -> Option<&PrivateKeys> {
         self.private_keys
             .as_ref()
             .map(|(private_keys, _)| private_keys)
+    }
+
+    pub fn has_private_keys(&self) -> bool {
+        self.private_keys.is_some()
     }
 
     pub fn private_key_salt(&self) -> Option<&Salt> {
@@ -101,15 +109,21 @@ impl Key {
         self.public_keys.enapsulation_public_key()
     }
 
-    pub fn endpoints(&self) -> &HashSet<URI> { &self.endpoints }
+    pub fn endpoints(&self) -> &HashSet<URI> {
+        &self.endpoints
+    }
 
-    pub fn endpoints_mut(&mut self) -> &mut HashSet<URI> { &mut self.endpoints }
+    pub fn endpoints_mut(&mut self) -> &mut HashSet<URI> {
+        &mut self.endpoints
+    }
 
     pub fn add_endpoint(&mut self, endpoint: URI) {
         self.endpoints.insert(endpoint);
     }
 
-    pub fn permissions(&self) -> &Permissions { &self.permissions }
+    pub fn permissions(&self) -> &Permissions {
+        &self.permissions
+    }
 
     pub fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
@@ -121,7 +135,9 @@ impl Key {
 }
 
 impl HasNickname for Key {
-    fn nickname(&self) -> &str { &self.nickname }
+    fn nickname(&self) -> &str {
+        &self.nickname
+    }
 
     fn set_nickname(&mut self, nickname: impl Into<String>) {
         self.nickname = nickname.into();
@@ -129,17 +145,34 @@ impl HasNickname for Key {
 }
 
 impl HasPermissions for Key {
-    fn permissions(&self) -> &Permissions { &self.permissions }
+    fn permissions(&self) -> &Permissions {
+        &self.permissions
+    }
 
-    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
+    fn permissions_mut(&mut self) -> &mut Permissions {
+        &mut self.permissions
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+/// Options for handling private keys in envelopes.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum PrivateKeyOptions {
+    /// Omit the private key from the envelope (default).
     #[default]
     Omit,
+
+    /// Include the private key in plaintext (with salt for decorrelation).
     Include,
+
+    /// Include the private key assertion but elide it (maintains digest tree).
     Elide,
+
+    /// Include the private key encrypted with a password using the specified
+    /// key derivation method.
+    Encrypt {
+        method: KeyDerivationMethod,
+        password: Vec<u8>,
+    },
 }
 
 impl Key {
@@ -149,18 +182,48 @@ impl Key {
             .add_salt_instance(salt)
     }
 
-    fn extract_optional_private_key(
+    fn extract_optional_private_key_with_password(
         envelope: &Envelope,
+        password: Option<&[u8]>,
     ) -> Result<Option<(PrivateKeys, Salt)>> {
         if let Some(private_key_assertion) =
             envelope.optional_assertion_with_predicate(PRIVATE_KEY)?
         {
-            // println!(
-            //     "private_key_assertion: {}",
-            //     private_key_assertion.subject().try_object()?.format()
-            // );
-            let private_keys_cbor =
-                private_key_assertion.subject().try_object()?.try_leaf()?;
+            let private_key_object =
+                private_key_assertion.subject().try_object()?;
+
+            // Check if the private key object is locked with a password
+            if private_key_object.is_locked_with_password() {
+                // Need a password to decrypt
+                if let Some(pwd) = password {
+                    // Try to unlock with the password
+                    match private_key_object.unlock_subject(pwd) {
+                        Ok(decrypted) => {
+                            // Successfully decrypted, extract the private key
+                            // The decrypted envelope has the PrivateKeys as subject
+                            let private_keys_cbor =
+                                decrypted.subject().try_leaf()?;
+                            let private_keys =
+                                PrivateKeys::try_from(private_keys_cbor)?;
+                            let salt = private_key_assertion
+                                .extract_object_for_predicate::<Salt>(
+                                    known_values::SALT,
+                                )?;
+                            return Ok(Some((private_keys, salt)));
+                        }
+                        Err(_) => {
+                            // Wrong password or decryption failed
+                            return Ok(None);
+                        }
+                    }
+                } else {
+                    // No password provided, cannot decrypt
+                    return Ok(None);
+                }
+            }
+
+            // Extract plaintext private key
+            let private_keys_cbor = private_key_object.try_leaf()?;
             let private_keys = PrivateKeys::try_from(private_keys_cbor)?;
             let salt = private_key_assertion
                 .extract_object_for_predicate::<Salt>(known_values::SALT)?;
@@ -186,6 +249,27 @@ impl Key {
                 PrivateKeyOptions::Elide => {
                     let assertion_envelope =
                         self.private_key_assertion_envelope().elide();
+                    envelope = envelope
+                        .add_assertion_envelope(assertion_envelope)
+                        .unwrap();
+                }
+                PrivateKeyOptions::Encrypt { method, password } => {
+                    let (private_keys, salt) =
+                        self.private_keys.clone().unwrap();
+
+                    // Create an envelope with just the private keys
+                    let private_keys_envelope = Envelope::new(private_keys);
+
+                    // Encrypt it using lock_subject
+                    let encrypted = private_keys_envelope
+                        .lock_subject(method, password)
+                        .expect("Failed to encrypt private key");
+
+                    // Create the privateKey assertion with the encrypted envelope
+                    let assertion_envelope =
+                        Envelope::new_assertion(PRIVATE_KEY, encrypted)
+                            .add_salt_instance(salt);
+
                     envelope = envelope
                         .add_assertion_envelope(assertion_envelope)
                         .unwrap();
@@ -220,8 +304,32 @@ impl TryFrom<&Envelope> for Key {
     type Error = Error;
 
     fn try_from(envelope: &Envelope) -> Result<Self> {
+        Self::try_from_envelope(envelope, None)
+    }
+}
+
+impl TryFrom<Envelope> for Key {
+    type Error = Error;
+
+    fn try_from(envelope: Envelope) -> Result<Self> {
+        Key::try_from(&envelope)
+    }
+}
+
+impl Key {
+    /// Try to extract a `Key` from an envelope, optionally providing a
+    /// password to decrypt an encrypted private key.
+    ///
+    /// If the private key is encrypted and no password is provided, the `Key`
+    /// will be created without the private key (it will be `None`).
+    pub fn try_from_envelope(
+        envelope: &Envelope,
+        password: Option<&[u8]>,
+    ) -> Result<Self> {
         let public_keys = PublicKeys::try_from(envelope.subject().try_leaf()?)?;
-        let private_keys = Key::extract_optional_private_key(envelope)?;
+        let private_keys = Key::extract_optional_private_key_with_password(
+            envelope, password,
+        )?;
 
         let nickname = envelope.extract_object_for_predicate_with_default(
             NICKNAME,
@@ -245,14 +353,10 @@ impl TryFrom<&Envelope> for Key {
     }
 }
 
-impl TryFrom<Envelope> for Key {
-    type Error = Error;
-
-    fn try_from(envelope: Envelope) -> Result<Self> { Key::try_from(&envelope) }
-}
-
 impl ReferenceProvider for &Key {
-    fn reference(&self) -> Reference { self.public_keys.reference() }
+    fn reference(&self) -> Reference {
+        self.public_keys.reference()
+    }
 }
 
 #[cfg(test)]
@@ -413,5 +517,267 @@ mod tests {
             envelope_eliding_private_key
                 .is_equivalent_to(&envelope_including_private_key)
         );
+    }
+
+    #[test]
+    fn test_key_with_encrypted_private_key() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
+        let password = b"correct_horse_battery_staple";
+
+        let key = Key::new_with_private_keys(
+            private_keys.clone(),
+            public_keys.clone(),
+        );
+
+        //
+        // Encrypt the private key with Argon2id.
+        //
+        let envelope_encrypted =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
+
+        #[rustfmt::skip]
+        assert_eq!(envelope_encrypted.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                {
+                    'privateKey': ENCRYPTED [
+                        'hasSecret': EncryptedKey(Argon2id)
+                    ]
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        "#}.trim());
+
+        //
+        // Extract without password - should succeed but private key is None.
+        //
+        let key_no_password =
+            Key::try_from_envelope(&envelope_encrypted, None).unwrap();
+        assert!(key_no_password.private_keys().is_none());
+        assert_eq!(key_no_password.public_keys(), &public_keys);
+
+        //
+        // Extract with wrong password - should succeed but private key is None.
+        //
+        let wrong_password = b"wrong_password";
+        let key_wrong_password =
+            Key::try_from_envelope(&envelope_encrypted, Some(wrong_password))
+                .unwrap();
+        assert!(key_wrong_password.private_keys().is_none());
+
+        //
+        // Extract with correct password - should succeed with private key.
+        //
+        let key_decrypted =
+            Key::try_from_envelope(&envelope_encrypted, Some(password))
+                .unwrap();
+        assert_eq!(key_decrypted.private_keys(), Some(&private_keys));
+        assert_eq!(key_decrypted, key);
+    }
+
+    #[test]
+    fn test_key_encrypted_with_different_methods() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
+        let password = b"test_password_123";
+
+        let key = Key::new_with_private_keys(
+            private_keys.clone(),
+            public_keys.clone(),
+        );
+
+        //
+        // Test encryption with Argon2id (recommended).
+        //
+        let envelope_argon2id =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
+        #[rustfmt::skip]
+        assert_eq!(envelope_argon2id.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                {
+                    'privateKey': ENCRYPTED [
+                        'hasSecret': EncryptedKey(Argon2id)
+                    ]
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        "#}.trim());
+        let key_argon2id =
+            Key::try_from_envelope(&envelope_argon2id, Some(password)).unwrap();
+        assert_eq!(key_argon2id, key);
+
+        //
+        // Test encryption with PBKDF2.
+        //
+        let envelope_pbkdf2 =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::PBKDF2,
+                password: password.to_vec(),
+            });
+        #[rustfmt::skip]
+        assert_eq!(envelope_pbkdf2.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                {
+                    'privateKey': ENCRYPTED [
+                        'hasSecret': EncryptedKey(PBKDF2(SHA256))
+                    ]
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        "#}.trim());
+        let key_pbkdf2 =
+            Key::try_from_envelope(&envelope_pbkdf2, Some(password)).unwrap();
+        assert_eq!(key_pbkdf2, key);
+
+        //
+        // Test encryption with Scrypt.
+        //
+        let envelope_scrypt =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Scrypt,
+                password: password.to_vec(),
+            });
+        #[rustfmt::skip]
+        assert_eq!(envelope_scrypt.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                {
+                    'privateKey': ENCRYPTED [
+                        'hasSecret': EncryptedKey(Scrypt)
+                    ]
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        "#}.trim());
+        let key_scrypt =
+            Key::try_from_envelope(&envelope_scrypt, Some(password)).unwrap();
+        assert_eq!(key_scrypt, key);
+
+        //
+        // Each encryption produces a different envelope (different salts/nonces).
+        //
+        assert_ne!(envelope_argon2id.ur_string(), envelope_pbkdf2.ur_string());
+        assert_ne!(envelope_pbkdf2.ur_string(), envelope_scrypt.ur_string());
+        assert_ne!(envelope_argon2id.ur_string(), envelope_scrypt.ur_string());
+    }
+
+    #[test]
+    fn test_key_private_key_storage_modes() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let private_keys = private_key_base.private_keys();
+        let public_keys = private_key_base.public_keys();
+
+        let key = Key::new_with_private_keys(
+            private_keys.clone(),
+            public_keys.clone(),
+        );
+
+        //
+        // Mode 1: Omit private key (default, most secure for sharing).
+        //
+        let envelope_omit = key.clone().into_envelope();
+        #[rustfmt::skip]
+        assert_eq!(envelope_omit.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                'allow': 'All'
+            ]
+        "#}.trim());
+
+        let key_omit = Key::try_from(&envelope_omit).unwrap();
+        assert!(key_omit.private_keys().is_none());
+
+        //
+        // Mode 2: Include private key in plaintext.
+        //
+        let envelope_include =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Include);
+        #[rustfmt::skip]
+        assert_eq!(envelope_include.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                {
+                    'privateKey': PrivateKeys(fb7c8739)
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        "#}.trim());
+
+        let key_include = Key::try_from(&envelope_include).unwrap();
+        assert_eq!(key_include, key);
+
+        //
+        // Mode 3: Elide private key (maintains digest for proofs).
+        //
+        let envelope_elide =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Elide);
+        #[rustfmt::skip]
+        assert_eq!(envelope_elide.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                'allow': 'All'
+                ELIDED
+            ]
+        "#}.trim());
+
+        let key_elide = Key::try_from(&envelope_elide).unwrap();
+        assert!(key_elide.private_keys().is_none());
+        assert!(envelope_elide.is_equivalent_to(&envelope_include));
+
+        //
+        // Mode 4: Encrypt private key with password.
+        //
+        let password = b"secure_password";
+        let envelope_encrypt =
+            key.clone().into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
+        #[rustfmt::skip]
+        assert_eq!(envelope_encrypt.format(), indoc! {r#"
+            PublicKeys(eb9b1cae) [
+                {
+                    'privateKey': ENCRYPTED [
+                        'hasSecret': EncryptedKey(Argon2id)
+                    ]
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        "#}.trim());
+
+        // Without password
+        let key_no_pwd =
+            Key::try_from_envelope(&envelope_encrypt, None).unwrap();
+        assert!(key_no_pwd.private_keys().is_none());
+
+        // With password
+        let key_with_pwd =
+            Key::try_from_envelope(&envelope_encrypt, Some(password)).unwrap();
+        assert_eq!(key_with_pwd, key);
     }
 }

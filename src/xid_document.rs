@@ -2089,4 +2089,91 @@ mod tests {
         //
         assert!(envelope_elide.is_equivalent_to(&envelope_plaintext));
     }
+
+    #[test]
+    fn test_xid_document_preserves_encrypted_keys_when_modified() {
+        bc_envelope::register_tags();
+
+        let mut rng = make_fake_random_number_generator();
+        let private_key_base = PrivateKeyBase::new_using(&mut rng);
+        let xid_document =
+            XIDDocument::new_with_private_key_base(private_key_base.clone());
+        let password = b"secret_password";
+
+        //
+        // Create document with encrypted private keys.
+        //
+        let envelope_encrypted = xid_document.clone().to_unsigned_envelope_opt(
+            PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+        );
+
+        //
+        // Load without password - encrypted keys are preserved but not accessible.
+        //
+        let mut doc_no_password =
+            XIDDocument::from_unsigned_envelope(&envelope_encrypted).unwrap();
+
+        // Private keys are not accessible
+        assert!(
+            doc_no_password
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .is_none()
+        );
+
+        // But encrypted keys ARE present
+        assert!(
+            doc_no_password
+                .inception_key()
+                .unwrap()
+                .has_encrypted_private_keys()
+        );
+
+        //
+        // Modify the document (add a resolution method).
+        //
+        let method_uri = URI::new("https://resolver.example.com").unwrap();
+        doc_no_password.add_resolution_method(method_uri.clone());
+
+        //
+        // Serialize with Include option - encrypted keys should be preserved.
+        //
+        let envelope_after_modification = doc_no_password
+            .to_unsigned_envelope_opt(PrivateKeyOptions::Include);
+
+        //
+        // The encrypted keys should still be there (not decrypted, still encrypted).
+        //
+        #[rustfmt::skip]
+        let format = envelope_after_modification.format();
+        assert!(format.contains("ENCRYPTED"));
+        assert!(format.contains("hasSecret"));
+        assert!(format.contains("dereference"));
+
+        //
+        // Load with password - should decrypt the keys.
+        //
+        let doc_with_password =
+            XIDDocument::from_unsigned_envelope_with_password(
+                &envelope_after_modification,
+                Some(password),
+            )
+            .unwrap();
+
+        // Should have the resolution method we added
+        assert!(doc_with_password.resolution_methods().contains(&method_uri));
+
+        // Should have decrypted private keys
+        assert!(
+            doc_with_password
+                .inception_key()
+                .unwrap()
+                .private_keys()
+                .is_some()
+        );
+    }
 }

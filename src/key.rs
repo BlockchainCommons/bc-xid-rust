@@ -11,15 +11,43 @@ use known_values::{ENDPOINT, NICKNAME, PRIVATE_KEY};
 use super::Permissions;
 use crate::{Error, HasNickname, HasPermissions, Privilege, Result};
 
+/// Private key data that can be either decrypted or encrypted.
+#[derive(Debug, Clone)]
+pub enum PrivateKeyData {
+    /// Decrypted private keys that can be used for signing/decryption.
+    Decrypted(PrivateKeys),
+
+    /// Encrypted private key envelope that cannot be used without decryption.
+    /// This preserves the encrypted assertion when a document is loaded
+    /// without the decryption password.
+    ///
+    /// Note: Envelope uses internal reference counting (Rc/Arc) so cloning
+    /// is cheap - no need for additional wrapper.
+    Encrypted(Envelope),
+}
+impl PartialEq for PrivateKeyData {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Decrypted(a), Self::Decrypted(b)) => a == b,
+            (Self::Encrypted(a), Self::Encrypted(b)) => {
+                // Compare envelopes by their UR string representation
+                a.ur_string() == b.ur_string()
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for PrivateKeyData {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Key {
     public_keys: PublicKeys,
-    private_keys: Option<(PrivateKeys, Salt)>,
+    private_keys: Option<(PrivateKeyData, Salt)>,
     nickname: String,
     endpoints: HashSet<URI>,
     permissions: Permissions,
 }
-
 impl Verifier for Key {
     fn verify(
         &self,
@@ -70,7 +98,7 @@ impl Key {
         let salt = Salt::new_with_len(32).unwrap();
         Self {
             public_keys,
-            private_keys: Some((private_keys, salt)),
+            private_keys: Some((PrivateKeyData::Decrypted(private_keys), salt)),
             nickname: String::new(),
             endpoints: HashSet::new(),
             permissions: Permissions::new_allow_all(),
@@ -88,13 +116,24 @@ impl Key {
     }
 
     pub fn private_keys(&self) -> Option<&PrivateKeys> {
-        self.private_keys
-            .as_ref()
-            .map(|(private_keys, _)| private_keys)
+        self.private_keys.as_ref().and_then(|(data, _)| match data {
+            PrivateKeyData::Decrypted(keys) => Some(keys),
+            PrivateKeyData::Encrypted(_) => None,
+        })
     }
 
     pub fn has_private_keys(&self) -> bool {
-        self.private_keys.is_some()
+        matches!(
+            self.private_keys.as_ref(),
+            Some((PrivateKeyData::Decrypted(_), _))
+        )
+    }
+
+    pub fn has_encrypted_private_keys(&self) -> bool {
+        matches!(
+            self.private_keys.as_ref(),
+            Some((PrivateKeyData::Encrypted(_), _))
+        )
     }
 
     pub fn private_key_salt(&self) -> Option<&Salt> {
@@ -177,20 +216,33 @@ pub enum PrivateKeyOptions {
 
 impl Key {
     fn private_key_assertion_envelope(&self) -> Envelope {
-        let (private_keys, salt) = self.private_keys.clone().unwrap();
-        Envelope::new_assertion(PRIVATE_KEY, private_keys)
-            .add_salt_instance(salt)
+        let (private_key_data, salt) = self.private_keys.clone().unwrap();
+        match private_key_data {
+            PrivateKeyData::Decrypted(private_keys) => {
+                Envelope::new_assertion(PRIVATE_KEY, private_keys)
+                    .add_salt_instance(salt)
+            }
+            PrivateKeyData::Encrypted(encrypted_envelope) => {
+                // Already encrypted, just wrap with privateKey predicate and salt
+                Envelope::new_assertion(PRIVATE_KEY, encrypted_envelope)
+                    .add_salt_instance(salt)
+            }
+        }
     }
 
     fn extract_optional_private_key_with_password(
         envelope: &Envelope,
         password: Option<&[u8]>,
-    ) -> Result<Option<(PrivateKeys, Salt)>> {
+    ) -> Result<Option<(PrivateKeyData, Salt)>> {
         if let Some(private_key_assertion) =
             envelope.optional_assertion_with_predicate(PRIVATE_KEY)?
         {
             let private_key_object =
                 private_key_assertion.subject().try_object()?;
+
+            // Extract the salt (always present)
+            let salt = private_key_assertion
+                .extract_object_for_predicate::<Salt>(known_values::SALT)?;
 
             // Check if the private key object is locked with a password
             if private_key_object.is_locked_with_password() {
@@ -200,34 +252,39 @@ impl Key {
                     match private_key_object.unlock_subject(pwd) {
                         Ok(decrypted) => {
                             // Successfully decrypted, extract the private key
-                            // The decrypted envelope has the PrivateKeys as subject
                             let private_keys_cbor =
                                 decrypted.subject().try_leaf()?;
                             let private_keys =
                                 PrivateKeys::try_from(private_keys_cbor)?;
-                            let salt = private_key_assertion
-                                .extract_object_for_predicate::<Salt>(
-                                    known_values::SALT,
-                                )?;
-                            return Ok(Some((private_keys, salt)));
+                            return Ok(Some((
+                                PrivateKeyData::Decrypted(private_keys),
+                                salt,
+                            )));
                         }
                         Err(_) => {
                             // Wrong password or decryption failed
-                            return Ok(None);
+                            // Store the encrypted envelope for later
+                            return Ok(Some((
+                                PrivateKeyData::Encrypted(
+                                    private_key_object.clone(),
+                                ),
+                                salt,
+                            )));
                         }
                     }
                 } else {
-                    // No password provided, cannot decrypt
-                    return Ok(None);
+                    // No password provided, store encrypted envelope
+                    return Ok(Some((
+                        PrivateKeyData::Encrypted(private_key_object.clone()),
+                        salt,
+                    )));
                 }
             }
 
             // Extract plaintext private key
             let private_keys_cbor = private_key_object.try_leaf()?;
             let private_keys = PrivateKeys::try_from(private_keys_cbor)?;
-            let salt = private_key_assertion
-                .extract_object_for_predicate::<Salt>(known_values::SALT)?;
-            return Ok(Some((private_keys, salt)));
+            return Ok(Some((PrivateKeyData::Decrypted(private_keys), salt)));
         }
         Ok(None)
     }
@@ -254,25 +311,44 @@ impl Key {
                         .unwrap();
                 }
                 PrivateKeyOptions::Encrypt { method, password } => {
-                    let (private_keys, salt) =
+                    let (private_key_data, salt) =
                         self.private_keys.clone().unwrap();
 
-                    // Create an envelope with just the private keys
-                    let private_keys_envelope = Envelope::new(private_keys);
+                    match private_key_data {
+                        PrivateKeyData::Decrypted(private_keys) => {
+                            // Create an envelope with just the private keys
+                            let private_keys_envelope =
+                                Envelope::new(private_keys);
 
-                    // Encrypt it using lock_subject
-                    let encrypted = private_keys_envelope
-                        .lock_subject(method, password)
-                        .expect("Failed to encrypt private key");
+                            // Encrypt it using lock_subject
+                            let encrypted = private_keys_envelope
+                                .lock_subject(method, password)
+                                .expect("Failed to encrypt private key");
 
-                    // Create the privateKey assertion with the encrypted envelope
-                    let assertion_envelope =
-                        Envelope::new_assertion(PRIVATE_KEY, encrypted)
+                            // Create the privateKey assertion with the encrypted envelope
+                            let assertion_envelope =
+                                Envelope::new_assertion(PRIVATE_KEY, encrypted)
+                                    .add_salt_instance(salt);
+
+                            envelope = envelope
+                                .add_assertion_envelope(assertion_envelope)
+                                .unwrap();
+                        }
+                        PrivateKeyData::Encrypted(encrypted_envelope) => {
+                            // Already encrypted - we can't re-encrypt without
+                            // decrypting first. Just preserve the existing
+                            // encrypted envelope.
+                            let assertion_envelope = Envelope::new_assertion(
+                                PRIVATE_KEY,
+                                encrypted_envelope,
+                            )
                             .add_salt_instance(salt);
 
-                    envelope = envelope
-                        .add_assertion_envelope(assertion_envelope)
-                        .unwrap();
+                            envelope = envelope
+                                .add_assertion_envelope(assertion_envelope)
+                                .unwrap();
+                        }
+                    }
                 }
                 PrivateKeyOptions::Omit => {}
             }

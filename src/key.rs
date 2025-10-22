@@ -294,63 +294,90 @@ impl Key {
         private_key_options: PrivateKeyOptions,
     ) -> Envelope {
         let mut envelope = Envelope::new(self.public_keys().clone());
-        if self.private_keys.is_some() {
-            match private_key_options {
-                PrivateKeyOptions::Include => {
+        if let Some((private_key_data, _)) = &self.private_keys {
+            match private_key_data {
+                PrivateKeyData::Encrypted(_) => {
+                    // Always preserve encrypted keys, regardless of options
                     let assertion_envelope =
                         self.private_key_assertion_envelope();
                     envelope = envelope
                         .add_assertion_envelope(assertion_envelope)
                         .unwrap();
                 }
-                PrivateKeyOptions::Elide => {
-                    let assertion_envelope =
-                        self.private_key_assertion_envelope().elide();
-                    envelope = envelope
-                        .add_assertion_envelope(assertion_envelope)
-                        .unwrap();
-                }
-                PrivateKeyOptions::Encrypt { method, password } => {
-                    let (private_key_data, salt) =
-                        self.private_keys.clone().unwrap();
-
-                    match private_key_data {
-                        PrivateKeyData::Decrypted(private_keys) => {
-                            // Create an envelope with just the private keys
-                            let private_keys_envelope =
-                                Envelope::new(private_keys);
-
-                            // Encrypt it using lock_subject
-                            let encrypted = private_keys_envelope
-                                .lock_subject(method, password)
-                                .expect("Failed to encrypt private key");
-
-                            // Create the privateKey assertion with the encrypted envelope
+                PrivateKeyData::Decrypted(_) => {
+                    // For decrypted keys, respect the private_key_options
+                    match private_key_options {
+                        PrivateKeyOptions::Include => {
                             let assertion_envelope =
-                                Envelope::new_assertion(PRIVATE_KEY, encrypted)
-                                    .add_salt_instance(salt);
-
+                                self.private_key_assertion_envelope();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        PrivateKeyData::Encrypted(encrypted_envelope) => {
-                            // Already encrypted - we can't re-encrypt without
-                            // decrypting first. Just preserve the existing
-                            // encrypted envelope.
-                            let assertion_envelope = Envelope::new_assertion(
-                                PRIVATE_KEY,
-                                encrypted_envelope,
-                            )
-                            .add_salt_instance(salt);
-
+                        PrivateKeyOptions::Elide => {
+                            let assertion_envelope =
+                                self.private_key_assertion_envelope().elide();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
+                        }
+                        PrivateKeyOptions::Encrypt { method, password } => {
+                            let (private_keys, salt) =
+                                self.private_keys.clone().unwrap();
+
+                            match private_keys {
+                                PrivateKeyData::Decrypted(keys) => {
+                                    // Create an envelope with just the private keys
+                                    let private_keys_envelope =
+                                        Envelope::new(keys);
+
+                                    // Encrypt it using lock_subject
+                                    let encrypted = private_keys_envelope
+                                        .lock_subject(method, password)
+                                        .expect(
+                                            "Failed to encrypt private key",
+                                        );
+
+                                    // Create the privateKey assertion with the encrypted envelope
+                                    let assertion_envelope =
+                                        Envelope::new_assertion(
+                                            PRIVATE_KEY,
+                                            encrypted,
+                                        )
+                                        .add_salt_instance(salt);
+
+                                    envelope = envelope
+                                        .add_assertion_envelope(
+                                            assertion_envelope,
+                                        )
+                                        .unwrap();
+                                }
+                                PrivateKeyData::Encrypted(
+                                    encrypted_envelope,
+                                ) => {
+                                    // Already encrypted - we can't re-encrypt without
+                                    // decrypting first. Just preserve the existing
+                                    // encrypted envelope.
+                                    let assertion_envelope =
+                                        Envelope::new_assertion(
+                                            PRIVATE_KEY,
+                                            encrypted_envelope,
+                                        )
+                                        .add_salt_instance(salt);
+
+                                    envelope = envelope
+                                        .add_assertion_envelope(
+                                            assertion_envelope,
+                                        )
+                                        .unwrap();
+                                }
+                            }
+                        }
+                        PrivateKeyOptions::Omit => {
+                            // Omit decrypted private keys
                         }
                     }
                 }
-                PrivateKeyOptions::Omit => {}
             }
         }
 

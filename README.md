@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.14.0"
+bc-xid = "0.14.1"
 ```
 
 ## Specification
@@ -48,6 +48,15 @@ Because this library is still in a community review stage, it should not be used
 See [Blockchain Commons' Development Phases](https://github.com/BlockchainCommons/Community/blob/master/release-path.md).
 
 ### Version History
+
+**0.14.1** — 2025-10-21
+- Add support for encrypted private keys in Key and XIDDocument.
+- Add PrivateKeyData enum to handle both decrypted and encrypted states.
+- Add private_key_envelope methods for extracting keys with optional decryption.
+- Add has_private_keys and has_encrypted_private_keys methods to Key.
+- Add inception_private_keys method to XIDDocument.
+- Add InvalidPassword error variant.
+- Enable multithreaded feature for bc-envelope dependency.
 
 **0.14.0** — 2025-10-20
 - Align to dependencies.

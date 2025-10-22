@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/bc-xid/0.14.0")]
+#![doc(html_root_url = "https://docs.rs/bc-xid/0.14.1")]
 #![warn(rust_2018_idioms)]
 
 //! # Introduction
@@ -19,7 +19,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! bc-xid = "0.14.0"
+//! bc-xid = "0.14.1"
 //! ```
 //!
 //! # Examples

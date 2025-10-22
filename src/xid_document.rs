@@ -144,6 +144,47 @@ impl XIDDocument {
             .find(|k| k.public_keys().reference() == *reference)
     }
 
+    /// Get the private key envelope for a specific key, optionally decrypting it.
+    ///
+    /// # Arguments
+    ///
+    /// * `public_keys` - The public keys identifying the key to retrieve
+    /// * `password` - Optional password for decryption
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(None)` if the key is not found or has no private key
+    /// - `Ok(Some(Envelope))` containing:
+    ///   - Decrypted `PrivateKeys` if unencrypted
+    ///   - Decrypted `PrivateKeys` if encrypted and correct password provided
+    ///   - Encrypted envelope if encrypted and no password provided
+    /// - `Err(Error::InvalidPassword)` if encrypted and wrong password provided
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bc_xid::XIDDocument;
+    /// use bc_envelope::prelude::*;
+    /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
+    ///
+    /// let prvkey_base = PrivateKeyBase::new();
+    /// let doc = XIDDocument::new_with_private_key_base(prvkey_base.clone());
+    ///
+    /// // Get unencrypted private key
+    /// let key = doc.keys().iter().next().unwrap();
+    /// let envelope = doc.private_key_envelope_for_key(key.public_keys(), None).unwrap().unwrap();
+    /// ```
+    pub fn private_key_envelope_for_key(
+        &self,
+        public_keys: &PublicKeys,
+        password: Option<&str>,
+    ) -> Result<Option<Envelope>> {
+        match self.find_key_by_public_keys(public_keys) {
+            None => Ok(None),
+            Some(key) => key.private_key_envelope(password),
+        }
+    }
+
     pub fn take_key(&mut self, key: &dyn PublicKeysProvider) -> Option<Key> {
         if let Some(key) = self.find_key_by_public_keys(key).cloned() {
             self.keys.take(&key)
@@ -777,6 +818,8 @@ mod tests {
         PrivateKeysProvider, PublicKeysProvider, SignatureScheme, URI, XID,
         XIDProvider, tags,
     };
+
+    use crate::Error;
     use bc_envelope::{PublicKeys, prelude::*};
     use bc_rand::make_fake_random_number_generator;
     use indoc::indoc;
@@ -2175,5 +2218,88 @@ mod tests {
                 .private_keys()
                 .is_some()
         );
+    }
+
+    #[test]
+    fn test_private_key_envelope_for_key() {
+        let prvkey_base = PrivateKeyBase::new();
+        let doc = XIDDocument::new_with_private_key_base(prvkey_base.clone());
+        let pubkeys = doc.inception_key().unwrap().public_keys().clone();
+
+        // Get unencrypted private key
+        let envelope = doc
+            .private_key_envelope_for_key(&pubkeys, None)
+            .unwrap()
+            .unwrap();
+
+        let private_keys = PrivateKeys::try_from(envelope.subject()).unwrap();
+        assert_eq!(private_keys, prvkey_base.private_keys());
+    }
+
+    #[test]
+    fn test_private_key_envelope_for_key_encrypted() {
+        let prvkey_base = PrivateKeyBase::new();
+        let password = "test-password";
+
+        // Create document with encrypted key
+        let doc = XIDDocument::new_with_private_key_base(prvkey_base.clone());
+        let envelope_encrypted =
+            doc.to_unsigned_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.as_bytes().to_vec(),
+            });
+
+        let doc_encrypted =
+            XIDDocument::from_unsigned_envelope(&envelope_encrypted).unwrap();
+        let pubkeys =
+            doc_encrypted.inception_key().unwrap().public_keys().clone();
+
+        // Without password - should get encrypted envelope
+        let encrypted_env = doc_encrypted
+            .private_key_envelope_for_key(&pubkeys, None)
+            .unwrap()
+            .unwrap();
+        let formatted = encrypted_env.format();
+        assert!(formatted.contains("ENCRYPTED"));
+        assert!(formatted.contains("hasSecret"));
+
+        // With correct password - should get decrypted keys
+        let decrypted_env = doc_encrypted
+            .private_key_envelope_for_key(&pubkeys, Some(password))
+            .unwrap()
+            .unwrap();
+        let private_keys =
+            PrivateKeys::try_from(decrypted_env.subject()).unwrap();
+        assert_eq!(private_keys, prvkey_base.private_keys());
+
+        // With wrong password - should error
+        let result =
+            doc_encrypted.private_key_envelope_for_key(&pubkeys, Some("wrong"));
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidPassword));
+    }
+
+    #[test]
+    fn test_private_key_envelope_for_key_not_found() {
+        let prvkey_base = PrivateKeyBase::new();
+        let doc = XIDDocument::new_with_private_key_base(prvkey_base.clone());
+
+        // Try to get key that doesn't exist
+        let other_pubkeys = PrivateKeyBase::new().public_keys();
+        let result = doc
+            .private_key_envelope_for_key(&other_pubkeys, None)
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_private_key_envelope_for_key_no_private_key() {
+        // Create document with public key only
+        let pubkeys = PrivateKeyBase::new().public_keys();
+        let doc = XIDDocument::new(pubkeys.clone());
+
+        // Should return None (no private key present)
+        let result = doc.private_key_envelope_for_key(&pubkeys, None).unwrap();
+        assert!(result.is_none());
     }
 }

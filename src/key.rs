@@ -140,6 +140,67 @@ impl Key {
         self.private_keys.as_ref().map(|(_, salt)| salt)
     }
 
+    /// Extract the private key data as an Envelope, optionally decrypting it.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(None)` if no private key is present
+    /// - `Ok(Some(Envelope))` containing:
+    ///   - Decrypted `PrivateKeys` if unencrypted
+    ///   - Decrypted `PrivateKeys` if encrypted and correct password provided
+    ///   - Encrypted envelope if encrypted and no password provided
+    /// - `Err(...)` if encrypted and wrong password provided
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bc_xid::Key;
+    /// use bc_envelope::prelude::*;
+    /// use bc_components::PrivateKeyBase;
+    ///
+    /// // Unencrypted key
+    /// let prvkey_base = PrivateKeyBase::new();
+    /// let key = Key::new_with_private_key_base(prvkey_base.clone());
+    /// let envelope = key.private_key_envelope(None).unwrap().unwrap();
+    /// // Returns envelope containing PrivateKeys
+    ///
+    /// // Encrypted key without password
+    /// // Returns the encrypted envelope as-is
+    ///
+    /// // Encrypted key with correct password
+    /// // Returns envelope containing decrypted PrivateKeys
+    /// ```
+    pub fn private_key_envelope(
+        &self,
+        password: Option<&str>,
+    ) -> Result<Option<Envelope>> {
+        match &self.private_keys {
+            None => Ok(None),
+            Some((PrivateKeyData::Decrypted(private_keys), _)) => {
+                // Unencrypted key - return as envelope
+                Ok(Some(Envelope::new(private_keys.clone())))
+            }
+            Some((PrivateKeyData::Encrypted(encrypted_envelope), _)) => {
+                if let Some(pwd) = password {
+                    // Try to decrypt with provided password
+                    match encrypted_envelope.clone().unlock_subject(pwd) {
+                        Ok(decrypted) => {
+                            // Successfully decrypted
+                            Ok(Some(decrypted))
+                        }
+                        Err(_) => {
+                            // Wrong password
+                            Err(Error::InvalidPassword)
+                        }
+                    }
+                } else {
+                    // No password provided, return encrypted envelope as-is
+                    Ok(Some(encrypted_envelope.clone()))
+                }
+            }
+        }
+    }
+
     pub fn signing_public_key(&self) -> &SigningPublicKey {
         self.public_keys.signing_public_key()
     }
@@ -882,5 +943,107 @@ mod tests {
         let key_with_pwd =
             Key::try_from_envelope(&envelope_encrypt, Some(password)).unwrap();
         assert_eq!(key_with_pwd, key);
+    }
+
+    #[test]
+    fn test_private_key_envelope_no_private_key() {
+        // Key with no private key
+        let pubkeys = PrivateKeyBase::new().public_keys();
+        let key = Key::new(&pubkeys);
+
+        let result = key.private_key_envelope(None).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_private_key_envelope_unencrypted() {
+        // Key with unencrypted private key
+        let prvkey_base = PrivateKeyBase::new();
+        let key = Key::new_with_private_key_base(prvkey_base.clone());
+
+        let envelope = key.private_key_envelope(None).unwrap().unwrap();
+
+        // Should be able to extract PrivateKeys from the envelope
+        let private_keys = PrivateKeys::try_from(envelope.subject()).unwrap();
+        assert_eq!(private_keys, prvkey_base.private_keys());
+    }
+
+    #[test]
+    fn test_private_key_envelope_encrypted_no_password() {
+        let prvkey_base = PrivateKeyBase::new();
+        let key = Key::new_with_private_key_base(prvkey_base.clone());
+        let password = "test-password";
+
+        // Encrypt the key
+        let envelope_encrypted =
+            key.into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.as_bytes().to_vec(),
+            });
+
+        let key_encrypted =
+            Key::try_from_envelope(&envelope_encrypted, None).unwrap();
+
+        // Get encrypted envelope without password
+        let encrypted_envelope =
+            key_encrypted.private_key_envelope(None).unwrap().unwrap();
+
+        // Should be encrypted - check that it contains ENCRYPTED marker
+        let formatted = encrypted_envelope.format();
+        assert!(formatted.contains("ENCRYPTED"));
+        assert!(formatted.contains("hasSecret"));
+    }
+
+    #[test]
+    fn test_private_key_envelope_encrypted_correct_password() {
+        let prvkey_base = PrivateKeyBase::new();
+        let key = Key::new_with_private_key_base(prvkey_base.clone());
+        let password = "test-password";
+
+        // Encrypt the key
+        let envelope_encrypted =
+            key.into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.as_bytes().to_vec(),
+            });
+
+        let key_encrypted =
+            Key::try_from_envelope(&envelope_encrypted, None).unwrap();
+
+        // Get decrypted envelope with correct password
+        let decrypted_envelope = key_encrypted
+            .private_key_envelope(Some(password))
+            .unwrap()
+            .unwrap();
+
+        // Should be decrypted
+        assert!(!decrypted_envelope.is_encrypted());
+        let private_keys =
+            PrivateKeys::try_from(decrypted_envelope.subject()).unwrap();
+        assert_eq!(private_keys, prvkey_base.private_keys());
+    }
+
+    #[test]
+    fn test_private_key_envelope_encrypted_wrong_password() {
+        let prvkey_base = PrivateKeyBase::new();
+        let key = Key::new_with_private_key_base(prvkey_base.clone());
+        let password = "test-password";
+
+        // Encrypt the key
+        let envelope_encrypted =
+            key.into_envelope_opt(PrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.as_bytes().to_vec(),
+            });
+
+        let key_encrypted =
+            Key::try_from_envelope(&envelope_encrypted, None).unwrap();
+
+        // Try to decrypt with wrong password
+        let result = key_encrypted.private_key_envelope(Some("wrong-password"));
+
+        // Should return InvalidPassword error
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidPassword));
     }
 }

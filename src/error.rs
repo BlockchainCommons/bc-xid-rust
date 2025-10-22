@@ -54,6 +54,9 @@ pub enum Error {
     #[error("delegate not found in XID document: {delegate}")]
     DelegateNotFoundInDocument { delegate: String },
 
+    #[error("invalid password")]
+    InvalidPassword,
+
     #[error("envelope parsing error")]
     EnvelopeParsing(#[from] bc_envelope::Error),
 

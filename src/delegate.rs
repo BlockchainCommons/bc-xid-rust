@@ -24,13 +24,19 @@ impl Delegate {
         }
     }
 
-    pub fn controller(&self) -> &Shared<XIDDocument> { &self.controller }
+    pub fn controller(&self) -> &Shared<XIDDocument> {
+        &self.controller
+    }
 }
 
 impl HasPermissions for Delegate {
-    fn permissions(&self) -> &Permissions { &self.permissions }
+    fn permissions(&self) -> &Permissions {
+        &self.permissions
+    }
 
-    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
+    fn permissions_mut(&mut self) -> &mut Permissions {
+        &mut self.permissions
+    }
 }
 
 impl EnvelopeEncodable for Delegate {
@@ -61,7 +67,9 @@ impl TryFrom<Envelope> for Delegate {
 }
 
 impl XIDProvider for Delegate {
-    fn xid(&self) -> XID { self.controller.read().xid() }
+    fn xid(&self) -> XID {
+        self.controller.read().xid()
+    }
 }
 
 impl ReferenceProvider for Delegate {
@@ -91,7 +99,7 @@ mod tests {
         #[rustfmt::skip]
         let expected = (indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
             ]
@@ -107,7 +115,7 @@ mod tests {
         #[rustfmt::skip]
         let expected = (indoc! {r#"
             XID(7c30cafe) [
-                'key': PublicKeys(b8164d99) [
+                'key': PublicKeys(b8164d99, SigningPublicKey(7c30cafe, SchnorrPublicKey(448e2868)), EncapsulationPublicKey(e472f495, X25519PublicKey(e472f495))) [
                     'allow': 'All'
                 ]
             ]
@@ -152,7 +160,7 @@ mod tests {
                     'allow': 'Encrypt'
                     'allow': 'Sign'
                 ]
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
             ]
@@ -172,7 +180,7 @@ mod tests {
         let expected = (indoc! {r#"
             {
                 XID(7c30cafe) [
-                    'key': PublicKeys(b8164d99) [
+                    'key': PublicKeys(b8164d99, SigningPublicKey(7c30cafe, SchnorrPublicKey(448e2868)), EncapsulationPublicKey(e472f495, X25519PublicKey(e472f495))) [
                         'allow': 'All'
                     ]
                 ]
@@ -194,7 +202,7 @@ mod tests {
             XID(71274df1) [
                 'delegate': {
                     XID(7c30cafe) [
-                        'key': PublicKeys(b8164d99) [
+                        'key': PublicKeys(b8164d99, SigningPublicKey(7c30cafe, SchnorrPublicKey(448e2868)), EncapsulationPublicKey(e472f495, X25519PublicKey(e472f495))) [
                             'allow': 'All'
                         ]
                     ]
@@ -202,7 +210,7 @@ mod tests {
                     'allow': 'Encrypt'
                     'allow': 'Sign'
                 ]
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
             ]

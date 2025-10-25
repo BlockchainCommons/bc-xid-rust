@@ -560,7 +560,7 @@ mod tests {
 
         #[rustfmt::skip]
         assert_eq!(envelope.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 'allow': 'All'
                 'endpoint': URI(btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33)
                 'endpoint': URI(https://resolver.example.com)
@@ -606,7 +606,7 @@ mod tests {
 
         #[rustfmt::skip]
         assert_eq!(envelope_omitting_private_key.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 'allow': 'All'
             ]
         "#}.trim());
@@ -631,9 +631,9 @@ mod tests {
 
         #[rustfmt::skip]
         assert_eq!(envelope_including_private_key.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
-                    'privateKey': PrivateKeys(fb7c8739)
+                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                 } [
                     'salt': Salt
                 ]
@@ -659,7 +659,7 @@ mod tests {
 
         #[rustfmt::skip]
         assert_eq!(envelope_eliding_private_key.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 'allow': 'All'
                 ELIDED
             ]
@@ -709,7 +709,7 @@ mod tests {
 
         #[rustfmt::skip]
         assert_eq!(envelope_encrypted.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
                     'privateKey': ENCRYPTED [
                         'hasSecret': EncryptedKey(Argon2id)
@@ -773,7 +773,7 @@ mod tests {
             });
         #[rustfmt::skip]
         assert_eq!(envelope_argon2id.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
                     'privateKey': ENCRYPTED [
                         'hasSecret': EncryptedKey(Argon2id)
@@ -798,7 +798,7 @@ mod tests {
             });
         #[rustfmt::skip]
         assert_eq!(envelope_pbkdf2.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
                     'privateKey': ENCRYPTED [
                         'hasSecret': EncryptedKey(PBKDF2(SHA256))
@@ -823,7 +823,7 @@ mod tests {
             });
         #[rustfmt::skip]
         assert_eq!(envelope_scrypt.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
                     'privateKey': ENCRYPTED [
                         'hasSecret': EncryptedKey(Scrypt)
@@ -866,7 +866,7 @@ mod tests {
         let envelope_omit = key.clone().into_envelope();
         #[rustfmt::skip]
         assert_eq!(envelope_omit.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 'allow': 'All'
             ]
         "#}.trim());
@@ -881,9 +881,9 @@ mod tests {
             key.clone().into_envelope_opt(PrivateKeyOptions::Include);
         #[rustfmt::skip]
         assert_eq!(envelope_include.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
-                    'privateKey': PrivateKeys(fb7c8739)
+                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                 } [
                     'salt': Salt
                 ]
@@ -901,7 +901,7 @@ mod tests {
             key.clone().into_envelope_opt(PrivateKeyOptions::Elide);
         #[rustfmt::skip]
         assert_eq!(envelope_elide.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 'allow': 'All'
                 ELIDED
             ]
@@ -922,7 +922,7 @@ mod tests {
             });
         #[rustfmt::skip]
         assert_eq!(envelope_encrypt.format(), indoc! {r#"
-            PublicKeys(eb9b1cae) [
+            PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
                     'privateKey': ENCRYPTED [
                         'hasSecret': EncryptedKey(Argon2id)

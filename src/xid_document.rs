@@ -848,7 +848,7 @@ mod tests {
         #[rustfmt::skip]
         let expected_format = (indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
             ]
@@ -1070,7 +1070,7 @@ mod tests {
         #[rustfmt::skip]
         let expected_format = (indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
             ]
@@ -1084,7 +1084,7 @@ mod tests {
         let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeys(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                         'allow': 'All'
                     ]
                 ]
@@ -1123,7 +1123,7 @@ mod tests {
         let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeys(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                         'allow': 'All'
                     ]
                     'provenance': ProvenanceMark(cfe14854)
@@ -1167,7 +1167,7 @@ mod tests {
         let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeys(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                         'allow': 'All'
                     ]
                 ]
@@ -1210,9 +1210,9 @@ mod tests {
         let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeys(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                         {
-                            'privateKey': PrivateKeys(fb7c8739)
+                            'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                         } [
                             'salt': Salt
                         ]
@@ -1252,7 +1252,7 @@ mod tests {
         let expected_format = (indoc! {r#"
             {
                 XID(71274df1) [
-                    'key': PublicKeys(eb9b1cae) [
+                    'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                         'allow': 'All'
                         ELIDED
                     ]
@@ -1311,7 +1311,7 @@ mod tests {
         #[rustfmt::skip]
         let expected_format = (indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(b8164d99) [
+                'key': PublicKeys(b8164d99, SigningPublicKey(7c30cafe, SchnorrPublicKey(448e2868)), EncapsulationPublicKey(e472f495, X25519PublicKey(e472f495))) [
                     'allow': 'All'
                 ]
             ]
@@ -1372,7 +1372,7 @@ mod tests {
             XID(71274df1) [
                 'delegate': {
                     XID(7c30cafe) [
-                        'key': PublicKeys(b8164d99) [
+                        'key': PublicKeys(b8164d99, SigningPublicKey(7c30cafe, SchnorrPublicKey(448e2868)), EncapsulationPublicKey(e472f495, X25519PublicKey(e472f495))) [
                             'allow': 'All'
                             'nickname': "Bob"
                         ]
@@ -1381,7 +1381,7 @@ mod tests {
                     'allow': 'Encrypt'
                     'allow': 'Sign'
                 ]
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                     'nickname': "Alice"
                 ]
@@ -1449,7 +1449,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_encrypted.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
                         'privateKey': ENCRYPTED [
                             'hasSecret': EncryptedKey(Argon2id)
@@ -1565,7 +1565,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_omit.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
             ]
@@ -1585,9 +1585,9 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_include.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
-                        'privateKey': PrivateKeys(fb7c8739)
+                        'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                     } [
                         'salt': Salt
                     ]
@@ -1617,7 +1617,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_elide.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                     ELIDED
                 ]
@@ -1645,7 +1645,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_encrypt.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
                         'privateKey': ENCRYPTED [
                             'hasSecret': EncryptedKey(Argon2id)
@@ -1701,7 +1701,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_argon2id.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
                         'privateKey': ENCRYPTED [
                             'hasSecret': EncryptedKey(Argon2id)
@@ -1726,7 +1726,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_pbkdf2.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
                         'privateKey': ENCRYPTED [
                             'hasSecret': EncryptedKey(PBKDF2(SHA256))
@@ -1751,7 +1751,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_scrypt.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
                         'privateKey': ENCRYPTED [
                             'hasSecret': EncryptedKey(Scrypt)
@@ -1969,9 +1969,9 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_plaintext.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
-                        'privateKey': PrivateKeys(fb7c8739)
+                        'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                     } [
                         'salt': Salt
                     ]
@@ -1999,7 +1999,7 @@ mod tests {
         #[rustfmt::skip]
         assert_eq!(envelope_encrypted.format(), indoc! {r#"
             XID(71274df1) [
-                'key': PublicKeys(eb9b1cae) [
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
                         'privateKey': ENCRYPTED [
                             'hasSecret': EncryptedKey(Argon2id)

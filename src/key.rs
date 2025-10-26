@@ -59,9 +59,7 @@ impl Verifier for Key {
 }
 
 impl PublicKeysProvider for Key {
-    fn public_keys(&self) -> PublicKeys {
-        self.public_keys.clone()
-    }
+    fn public_keys(&self) -> PublicKeys { self.public_keys.clone() }
 }
 
 impl std::hash::Hash for Key {
@@ -111,9 +109,7 @@ impl Key {
         Self::new_with_private_keys(private_keys, public_keys)
     }
 
-    pub fn public_keys(&self) -> &PublicKeys {
-        &self.public_keys
-    }
+    pub fn public_keys(&self) -> &PublicKeys { &self.public_keys }
 
     pub fn private_keys(&self) -> Option<&PrivateKeys> {
         self.private_keys.as_ref().and_then(|(data, _)| match data {
@@ -154,9 +150,9 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use bc_xid::Key;
-    /// use bc_envelope::prelude::*;
     /// use bc_components::PrivateKeyBase;
+    /// use bc_envelope::prelude::*;
+    /// use bc_xid::Key;
     ///
     /// // Unencrypted key
     /// let prvkey_base = PrivateKeyBase::new();
@@ -209,21 +205,15 @@ impl Key {
         self.public_keys.enapsulation_public_key()
     }
 
-    pub fn endpoints(&self) -> &HashSet<URI> {
-        &self.endpoints
-    }
+    pub fn endpoints(&self) -> &HashSet<URI> { &self.endpoints }
 
-    pub fn endpoints_mut(&mut self) -> &mut HashSet<URI> {
-        &mut self.endpoints
-    }
+    pub fn endpoints_mut(&mut self) -> &mut HashSet<URI> { &mut self.endpoints }
 
     pub fn add_endpoint(&mut self, endpoint: URI) {
         self.endpoints.insert(endpoint);
     }
 
-    pub fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
+    pub fn permissions(&self) -> &Permissions { &self.permissions }
 
     pub fn permissions_mut(&mut self) -> &mut Permissions {
         &mut self.permissions
@@ -235,9 +225,7 @@ impl Key {
 }
 
 impl HasNickname for Key {
-    fn nickname(&self) -> &str {
-        &self.nickname
-    }
+    fn nickname(&self) -> &str { &self.nickname }
 
     fn set_nickname(&mut self, nickname: impl Into<String>) {
         self.nickname = nickname.into();
@@ -245,13 +233,9 @@ impl HasNickname for Key {
 }
 
 impl HasPermissions for Key {
-    fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
+    fn permissions(&self) -> &Permissions { &self.permissions }
 
-    fn permissions_mut(&mut self) -> &mut Permissions {
-        &mut self.permissions
-    }
+    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
 }
 
 /// Options for handling private keys in envelopes.
@@ -284,7 +268,8 @@ impl Key {
                     .add_salt_instance(salt)
             }
             PrivateKeyData::Encrypted(encrypted_envelope) => {
-                // Already encrypted, just wrap with privateKey predicate and salt
+                // Already encrypted, just wrap with privateKey predicate and
+                // salt
                 Envelope::new_assertion(PRIVATE_KEY, encrypted_envelope)
                     .add_salt_instance(salt)
             }
@@ -388,7 +373,8 @@ impl Key {
 
                             match private_keys {
                                 PrivateKeyData::Decrypted(keys) => {
-                                    // Create an envelope with just the private keys
+                                    // Create an envelope with just the private
+                                    // keys
                                     let private_keys_envelope =
                                         Envelope::new(keys);
 
@@ -399,7 +385,8 @@ impl Key {
                                             "Failed to encrypt private key",
                                         );
 
-                                    // Create the privateKey assertion with the encrypted envelope
+                                    // Create the privateKey assertion with the
+                                    // encrypted envelope
                                     let assertion_envelope =
                                         Envelope::new_assertion(
                                             PRIVATE_KEY,
@@ -416,8 +403,10 @@ impl Key {
                                 PrivateKeyData::Encrypted(
                                     encrypted_envelope,
                                 ) => {
-                                    // Already encrypted - we can't re-encrypt without
-                                    // decrypting first. Just preserve the existing
+                                    // Already encrypted - we can't re-encrypt
+                                    // without
+                                    // decrypting first. Just preserve the
+                                    // existing
                                     // encrypted envelope.
                                     let assertion_envelope =
                                         Envelope::new_assertion(
@@ -475,9 +464,7 @@ impl TryFrom<&Envelope> for Key {
 impl TryFrom<Envelope> for Key {
     type Error = Error;
 
-    fn try_from(envelope: Envelope) -> Result<Self> {
-        Key::try_from(&envelope)
-    }
+    fn try_from(envelope: Envelope) -> Result<Self> { Key::try_from(&envelope) }
 }
 
 impl Key {
@@ -518,7 +505,5 @@ impl Key {
 }
 
 impl ReferenceProvider for &Key {
-    fn reference(&self) -> Reference {
-        self.public_keys.reference()
-    }
+    fn reference(&self) -> Reference { self.public_keys.reference() }
 }

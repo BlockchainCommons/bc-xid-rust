@@ -3,8 +3,9 @@ mod common;
 use bc_components::{PublicKeysProvider, URI};
 use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
 use bc_rand::make_fake_random_number_generator;
-
-use bc_xid::{Service, HasPermissions, Privilege, XIDDocument, XIDDocumentKeyOptions};
+use bc_xid::{
+    HasPermissions, Privilege, Service, XIDDocument, XIDDocumentKeyOptions,
+};
 
 #[test]
 fn test_1() {
@@ -17,7 +18,9 @@ fn test_1() {
 
     let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
     let bob_public_keys = bob_private_key_base.public_keys();
-    let bob_xid_document = XIDDocument::new(Some(XIDDocumentKeyOptions::PublicKey(bob_public_keys)));
+    let bob_xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PublicKey(bob_public_keys),
+    ));
 
     let mut service =
         Service::new(URI::try_from("https://example.com").unwrap());

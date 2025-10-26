@@ -2,12 +2,16 @@ mod common;
 
 use std::collections::HashSet;
 
-use bc_components::{KeyDerivationMethod, PrivateKeyBase, PrivateKeys, PrivateKeysProvider, PublicKeysProvider, URI};
+use bc_components::{
+    KeyDerivationMethod, PrivateKeyBase, PrivateKeys, PrivateKeysProvider,
+    PublicKeysProvider, URI,
+};
 use bc_envelope::prelude::*;
 use bc_rand::make_fake_random_number_generator;
+use bc_xid::{
+    Error, HasNickname, HasPermissions, Key, PrivateKeyOptions, Privilege,
+};
 use indoc::indoc;
-
-use bc_xid::{Error, HasNickname, HasPermissions, Key, PrivateKeyOptions, Privilege};
 
 #[test]
 fn test_key() {
@@ -20,8 +24,9 @@ fn test_key() {
 
     let resolver1 = URI::new("https://resolver.example.com").unwrap();
     let resolver2 = URI::new(
-        "btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33"
-    ).unwrap();
+        "btc:9d2203b1c72eddc072b566c4a16ed8757fcba95a3be6f270e17a128e41554b33",
+    )
+    .unwrap();
     let resolvers: HashSet<URI> =
         vec![resolver1, resolver2].into_iter().collect();
 
@@ -59,10 +64,8 @@ fn test_with_private_key() {
     // all permissions.
     //
 
-    let key_including_private_key = Key::new_with_private_keys(
-        private_keys.clone(),
-        public_keys.clone(),
-    );
+    let key_including_private_key =
+        Key::new_with_private_keys(private_keys.clone(), public_keys.clone());
 
     //
     // Permissions given to a `Key` constructed from a `PublicKeys` are
@@ -169,10 +172,8 @@ fn test_key_with_encrypted_private_key() {
     let public_keys = private_key_base.public_keys();
     let password = b"correct_horse_battery_staple";
 
-    let key = Key::new_with_private_keys(
-        private_keys.clone(),
-        public_keys.clone(),
-    );
+    let key =
+        Key::new_with_private_keys(private_keys.clone(), public_keys.clone());
 
     //
     // Encrypt the private key with Argon2id.
@@ -218,8 +219,7 @@ fn test_key_with_encrypted_private_key() {
     // Extract with correct password - should succeed with private key.
     //
     let key_decrypted =
-        Key::try_from_envelope(&envelope_encrypted, Some(password))
-            .unwrap();
+        Key::try_from_envelope(&envelope_encrypted, Some(password)).unwrap();
     assert_eq!(key_decrypted.private_keys(), Some(&private_keys));
     assert_eq!(key_decrypted, key);
 }
@@ -234,10 +234,8 @@ fn test_key_encrypted_with_different_methods() {
     let public_keys = private_key_base.public_keys();
     let password = b"test_password_123";
 
-    let key = Key::new_with_private_keys(
-        private_keys.clone(),
-        public_keys.clone(),
-    );
+    let key =
+        Key::new_with_private_keys(private_keys.clone(), public_keys.clone());
 
     //
     // Test encryption with Argon2id (recommended).
@@ -331,10 +329,8 @@ fn test_key_private_key_storage_modes() {
     let private_keys = private_key_base.private_keys();
     let public_keys = private_key_base.public_keys();
 
-    let key = Key::new_with_private_keys(
-        private_keys.clone(),
-        public_keys.clone(),
-    );
+    let key =
+        Key::new_with_private_keys(private_keys.clone(), public_keys.clone());
 
     //
     // Mode 1: Omit private key (default, most secure for sharing).
@@ -411,8 +407,7 @@ fn test_key_private_key_storage_modes() {
     "#}.trim());
 
     // Without password
-    let key_no_pwd =
-        Key::try_from_envelope(&envelope_encrypt, None).unwrap();
+    let key_no_pwd = Key::try_from_envelope(&envelope_encrypt, None).unwrap();
     assert!(key_no_pwd.private_keys().is_none());
 
     // With password

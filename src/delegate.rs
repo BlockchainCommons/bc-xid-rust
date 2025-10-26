@@ -24,19 +24,13 @@ impl Delegate {
         }
     }
 
-    pub fn controller(&self) -> &Shared<XIDDocument> {
-        &self.controller
-    }
+    pub fn controller(&self) -> &Shared<XIDDocument> { &self.controller }
 }
 
 impl HasPermissions for Delegate {
-    fn permissions(&self) -> &Permissions {
-        &self.permissions
-    }
+    fn permissions(&self) -> &Permissions { &self.permissions }
 
-    fn permissions_mut(&mut self) -> &mut Permissions {
-        &mut self.permissions
-    }
+    fn permissions_mut(&mut self) -> &mut Permissions { &mut self.permissions }
 }
 
 impl EnvelopeEncodable for Delegate {
@@ -67,9 +61,7 @@ impl TryFrom<Envelope> for Delegate {
 }
 
 impl XIDProvider for Delegate {
-    fn xid(&self) -> XID {
-        self.controller.read().xid()
-    }
+    fn xid(&self) -> XID { self.controller.read().xid() }
 }
 
 impl ReferenceProvider for Delegate {

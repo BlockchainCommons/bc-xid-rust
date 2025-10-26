@@ -133,13 +133,9 @@ impl XIDDocument {
         self.resolution_methods.take(method.as_ref())
     }
 
-    pub fn keys(&self) -> &HashSet<Key> {
-        &self.keys
-    }
+    pub fn keys(&self) -> &HashSet<Key> { &self.keys }
 
-    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
-        &mut self.keys
-    }
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> { &mut self.keys }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
         if self.find_key_by_public_keys(key.public_keys()).is_some() {
@@ -163,7 +159,8 @@ impl XIDDocument {
             .find(|k| k.public_keys().reference() == *reference)
     }
 
-    /// Get the private key envelope for a specific key, optionally decrypting it.
+    /// Get the private key envelope for a specific key, optionally decrypting
+    /// it.
     ///
     /// # Arguments
     ///
@@ -182,16 +179,21 @@ impl XIDDocument {
     /// # Examples
     ///
     /// ```
-    /// use bc_xid::{XIDDocument, XIDDocumentKeyOptions};
-    /// use bc_envelope::prelude::*;
     /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
+    /// use bc_envelope::prelude::*;
+    /// use bc_xid::{XIDDocument, XIDDocumentKeyOptions};
     ///
     /// let prvkey_base = PrivateKeyBase::new();
-    /// let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(prvkey_base.clone())));
+    /// let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
+    ///     prvkey_base.clone(),
+    /// )));
     ///
     /// // Get unencrypted private key
     /// let key = doc.keys().iter().next().unwrap();
-    /// let envelope = doc.private_key_envelope_for_key(key.public_keys(), None).unwrap().unwrap();
+    /// let envelope = doc
+    ///     .private_key_envelope_for_key(key.public_keys(), None)
+    ///     .unwrap()
+    ///     .unwrap();
     /// ```
     pub fn private_key_envelope_for_key(
         &self,
@@ -327,9 +329,7 @@ impl XIDDocument {
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
     #[allow(clippy::mutable_key_type)]
-    pub fn delegates(&self) -> &HashSet<Delegate> {
-        &self.delegates
-    }
+    pub fn delegates(&self) -> &HashSet<Delegate> { &self.delegates }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -399,9 +399,7 @@ impl XIDDocument {
         self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
-    pub fn services(&self) -> &HashSet<Service> {
-        &self.services
-    }
+    pub fn services(&self) -> &HashSet<Service> { &self.services }
 
     pub fn add_service(&mut self, service: Service) -> Result<()> {
         if self.find_service_by_uri(service.uri()).is_some() {
@@ -713,39 +711,27 @@ impl XIDDocument {
 }
 
 impl Default for XIDDocument {
-    fn default() -> Self {
-        Self::new(None)
-    }
+    fn default() -> Self { Self::new(None) }
 }
 
 impl XIDProvider for XIDDocument {
-    fn xid(&self) -> XID {
-        self.xid
-    }
+    fn xid(&self) -> XID { self.xid }
 }
 
 impl ReferenceProvider for XIDDocument {
-    fn reference(&self) -> Reference {
-        self.xid.reference()
-    }
+    fn reference(&self) -> Reference { self.xid.reference() }
 }
 
 impl AsRef<XIDDocument> for XIDDocument {
-    fn as_ref(&self) -> &XIDDocument {
-        self
-    }
+    fn as_ref(&self) -> &XIDDocument { self }
 }
 
 impl From<XIDDocument> for XID {
-    fn from(doc: XIDDocument) -> Self {
-        doc.xid
-    }
+    fn from(doc: XIDDocument) -> Self { doc.xid }
 }
 
 impl From<XID> for XIDDocument {
-    fn from(xid: XID) -> Self {
-        XIDDocument::from_xid(xid)
-    }
+    fn from(xid: XID) -> Self { XIDDocument::from_xid(xid) }
 }
 
 impl From<PublicKeys> for XIDDocument {
@@ -756,20 +742,22 @@ impl From<PublicKeys> for XIDDocument {
 
 impl From<PrivateKeyBase> for XIDDocument {
     fn from(inception_key: PrivateKeyBase) -> Self {
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(inception_key)))
+        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
+            inception_key,
+        )))
     }
 }
 
 impl From<&PrivateKeyBase> for XIDDocument {
     fn from(inception_key: &PrivateKeyBase) -> Self {
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(inception_key.clone())))
+        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
+            inception_key.clone(),
+        )))
     }
 }
 
 impl EnvelopeEncodable for XIDDocument {
-    fn into_envelope(self) -> Envelope {
-        self.to_unsigned_envelope()
-    }
+    fn into_envelope(self) -> Envelope { self.to_unsigned_envelope() }
 }
 
 impl TryFrom<&Envelope> for XIDDocument {
@@ -789,15 +777,11 @@ impl TryFrom<Envelope> for XIDDocument {
 }
 
 impl CBORTagged for XIDDocument {
-    fn cbor_tags() -> Vec<Tag> {
-        tags_for_values(&[TAG_XID])
-    }
+    fn cbor_tags() -> Vec<Tag> { tags_for_values(&[TAG_XID]) }
 }
 
 impl From<XIDDocument> for CBOR {
-    fn from(value: XIDDocument) -> Self {
-        value.tagged_cbor()
-    }
+    fn from(value: XIDDocument) -> Self { value.tagged_cbor() }
 }
 
 impl CBORTaggedEncodable for XIDDocument {

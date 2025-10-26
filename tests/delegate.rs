@@ -1,11 +1,10 @@
 mod common;
 
 use bc_components::{PrivateKeyBase, PublicKeysProvider, XIDProvider};
-use bc_rand::make_fake_random_number_generator;
 use bc_envelope::prelude::*;
-use indoc::indoc;
-
+use bc_rand::make_fake_random_number_generator;
 use bc_xid::{Delegate, HasPermissions, Privilege, XIDDocument};
+use indoc::indoc;
 
 #[test]
 fn test_delegate() {

@@ -6,18 +6,15 @@ use bc_components::{
     PrivateKeysProvider, PublicKeysProvider, SignatureScheme, URI, XID,
     XIDProvider, tags,
 };
-
 use bc_envelope::{PublicKeys, prelude::*};
 use bc_rand::make_fake_random_number_generator;
-use bc_xid::{Error, XIDDocumentKeyOptions};
+use bc_xid::{
+    Delegate, Error, HasPermissions, Key, PrivateKeyOptions, Privilege,
+    Service, XIDDocument, XIDDocumentKeyOptions,
+};
 use indoc::indoc;
 use provenance_mark::{
     ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed,
-};
-
-use bc_xid::{
-    Delegate, HasPermissions, Key, PrivateKeyOptions, Privilege, Service,
-    XIDDocument,
 };
 
 #[test]
@@ -336,8 +333,9 @@ fn with_private_key() {
     // will include the private key.
     //
 
-    let xid_document_including_private_key =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_inception_key.clone())));
+    let xid_document_including_private_key = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_inception_key.clone()),
+    ));
 
     //
     // By default, the `Envelope` representation of a `XIDDocument` will
@@ -619,9 +617,11 @@ fn xid_document_with_encrypted_private_keys() {
     //
     // Create an XID document with private keys.
     //
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicAndPrivateKey(public_keys, private_keys.clone()),
-    ));
+    let xid_document =
+        XIDDocument::new(Some(XIDDocumentKeyOptions::PublicAndPrivateKey(
+            public_keys,
+            private_keys.clone(),
+        )));
 
     //
     // Convert to envelope with encrypted private keys using Argon2id.
@@ -699,8 +699,9 @@ fn xid_document_with_encrypted_multiple_keys() {
     // Create an XID document with inception key.
     //
     let inception_base = PrivateKeyBase::new_using(&mut rng);
-    let mut xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(inception_base.clone())));
+    let mut xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(inception_base.clone()),
+    ));
 
     //
     // Add a second key with private key material.
@@ -742,8 +743,9 @@ fn xid_document_private_key_modes() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
 
     //
     // Mode 1: Omit private keys (default)
@@ -871,8 +873,9 @@ fn xid_document_encrypted_with_different_methods() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
     let password = b"test_password";
 
     //
@@ -970,8 +973,9 @@ fn xid_document_reencrypt_with_different_password() {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let private_keys = private_key_base.private_keys();
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
     let password1 = b"first_password";
     let password2 = b"second_password";
 
@@ -1073,8 +1077,9 @@ fn xid_document_change_encryption_method() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
     let password = b"shared_password";
 
     //
@@ -1140,8 +1145,9 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let private_keys = private_key_base.private_keys();
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
     let password = b"test_password";
 
     //
@@ -1250,8 +1256,9 @@ fn xid_document_switch_between_storage_modes() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
     let password = b"mode_switch_password";
 
     //
@@ -1322,8 +1329,9 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone())));
+    let xid_document = XIDDocument::new(Some(
+        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
+    ));
     let password = b"secret_password";
 
     //
@@ -1372,7 +1380,8 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
         doc_no_password.to_unsigned_envelope_opt(PrivateKeyOptions::Include);
 
     //
-    // The encrypted keys should still be there (not decrypted, still encrypted).
+    // The encrypted keys should still be there (not decrypted, still
+    // encrypted).
     //
     #[rustfmt::skip]
     let format = envelope_after_modification.format();
@@ -1405,7 +1414,9 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
 #[test]
 fn private_key_envelope_for_key() {
     let prvkey_base = PrivateKeyBase::new();
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(prvkey_base.clone())));
+    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
+        prvkey_base.clone(),
+    )));
     let pubkeys = doc.inception_key().unwrap().public_keys().clone();
 
     // Get unencrypted private key
@@ -1424,7 +1435,9 @@ fn private_key_envelope_for_key_encrypted() {
     let password = "test-password";
 
     // Create document with encrypted key
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(prvkey_base.clone())));
+    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
+        prvkey_base.clone(),
+    )));
     let envelope_encrypted =
         doc.to_unsigned_envelope_opt(PrivateKeyOptions::Encrypt {
             method: KeyDerivationMethod::Argon2id,
@@ -1462,7 +1475,9 @@ fn private_key_envelope_for_key_encrypted() {
 #[test]
 fn private_key_envelope_for_key_not_found() {
     let prvkey_base = PrivateKeyBase::new();
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(prvkey_base.clone())));
+    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
+        prvkey_base.clone(),
+    )));
 
     // Try to get key that doesn't exist
     let other_pubkeys = PrivateKeyBase::new().public_keys();

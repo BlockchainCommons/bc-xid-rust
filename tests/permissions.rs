@@ -1,8 +1,8 @@
 mod common;
 
-use indoc::indoc;
 use bc_envelope::prelude::*;
 use bc_xid::*;
+use indoc::indoc;
 
 #[test]
 fn permissions() {

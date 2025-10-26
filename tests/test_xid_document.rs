@@ -9,13 +9,11 @@ use bc_components::{
 use bc_envelope::{PublicKeys, prelude::*};
 use bc_rand::make_fake_random_number_generator;
 use bc_xid::{
-    Delegate, Error, HasPermissions, Key, PrivateKeyOptions, Privilege,
-    Service, XIDDocument, XIDDocumentKeyOptions,
+    Delegate, Error, GenesisMarkOptions, HasPermissions, InceptionKeyOptions,
+    Key, PrivateKeyOptions, Privilege, Service, XIDDocument,
 };
 use indoc::indoc;
-use provenance_mark::{
-    ProvenanceMarkGenerator, ProvenanceMarkResolution, ProvenanceSeed,
-};
+use provenance_mark::ProvenanceMarkResolution;
 
 #[test]
 fn xid_document() {
@@ -23,8 +21,10 @@ fn xid_document() {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let public_keys = private_key_base.public_keys();
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PublicKey(public_keys)));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(public_keys),
+        GenesisMarkOptions::None,
+    );
 
     // Extract the XID from the XID document.
     let xid = xid_document.xid();
@@ -120,9 +120,10 @@ fn xid_document_pq() {
         PublicKeys::new(signing_public_key, encapsulation_public_key);
 
     // Create the XID document.
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicAndPrivateKey(public_keys, private_keys),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicAndPrivateKeys(public_keys, private_keys),
+        GenesisMarkOptions::None,
+    );
 
     // Convert the XID document to an Envelope.
     let envelope = xid_document
@@ -208,8 +209,10 @@ fn document_with_resolution_methods() {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let public_keys = private_key_base.public_keys();
-    let mut xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PublicKey(public_keys)));
+    let mut xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(public_keys),
+        GenesisMarkOptions::None,
+    );
 
     // Add resolution methods.
     xid_document.add_resolution_method(
@@ -245,9 +248,10 @@ fn signed_xid_document() {
     let public_inception_key = private_inception_key.public_keys();
 
     // Create a XIDDocument for the inception key.
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicKey(public_inception_key),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(public_inception_key),
+        GenesisMarkOptions::None,
+    );
 
     let envelope = xid_document.clone().into_envelope();
     #[rustfmt::skip]
@@ -290,16 +294,15 @@ fn with_provenance() {
     let private_inception_key = PrivateKeyBase::new_using(&mut rng);
     let inception_key = private_inception_key.public_keys();
 
-    let genesis_seed = ProvenanceSeed::new_using(&mut rng);
-
-    let mut generator = ProvenanceMarkGenerator::new_with_seed(
-        ProvenanceMarkResolution::Quartile,
-        genesis_seed,
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(inception_key),
+        GenesisMarkOptions::Passphrase(
+            "test".to_string(),
+            Some(ProvenanceMarkResolution::Quartile),
+            Some(Date::from_string("2025-01-01").unwrap()),
+            None,
+        ),
     );
-    let date = Date::from_string("2025-01-01").unwrap();
-    let provenance = generator.next(date, None::<String>);
-    let xid_document =
-        XIDDocument::new_with_provenance(inception_key, provenance);
     let signed_envelope =
         xid_document.to_signed_envelope(&private_inception_key);
     #[rustfmt::skip]
@@ -309,7 +312,7 @@ fn with_provenance() {
                 'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
-                'provenance': ProvenanceMark(cfe14854)
+                'provenance': ProvenanceMark(8aeb51a1)
             ]
         } [
             'signed': Signature
@@ -319,7 +322,14 @@ fn with_provenance() {
 
     let self_certified_xid_document =
         XIDDocument::try_from_signed_envelope(&signed_envelope).unwrap();
-    assert_eq!(xid_document, self_certified_xid_document);
+    // The provenance mark should match, but the generator won't be present
+    // after deserialization
+    assert_eq!(xid_document.xid(), self_certified_xid_document.xid());
+    assert_eq!(
+        xid_document.provenance(),
+        self_certified_xid_document.provenance()
+    );
+    assert_eq!(xid_document.keys(), self_certified_xid_document.keys());
 }
 
 #[test]
@@ -333,9 +343,10 @@ fn with_private_key() {
     // will include the private key.
     //
 
-    let xid_document_including_private_key = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_inception_key.clone()),
-    ));
+    let xid_document_including_private_key = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_inception_key.clone()),
+        GenesisMarkOptions::None,
+    );
 
     //
     // By default, the `Envelope` representation of a `XIDDocument` will
@@ -371,9 +382,10 @@ fn with_private_key() {
     // `Envelope` representation is identical to the default representation.
     //
 
-    let xid_document_excluding_private_key = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicKey(public_inception_key),
-    ));
+    let xid_document_excluding_private_key = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(public_inception_key),
+        GenesisMarkOptions::None,
+    );
     assert_eq!(xid_document_excluding_private_key, xid_document2);
 
     //
@@ -520,18 +532,20 @@ fn with_service() {
 
     let alice_private_key_base = PrivateKeyBase::new_using(&mut rng);
     let alice_public_keys = alice_private_key_base.public_keys();
-    let mut alice_xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicKey(alice_public_keys.clone()),
-    ));
+    let mut alice_xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(alice_public_keys.clone()),
+        GenesisMarkOptions::None,
+    );
     alice_xid_document
         .set_name_for_key(&alice_public_keys, "Alice")
         .unwrap();
 
     let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
     let bob_public_keys = bob_private_key_base.public_keys();
-    let mut bob_xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicKey(bob_public_keys.clone()),
-    ));
+    let mut bob_xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(bob_public_keys.clone()),
+        GenesisMarkOptions::None,
+    );
     bob_xid_document
         .set_name_for_key(&bob_public_keys, "Bob")
         .unwrap();
@@ -617,11 +631,13 @@ fn xid_document_with_encrypted_private_keys() {
     //
     // Create an XID document with private keys.
     //
-    let xid_document =
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PublicAndPrivateKey(
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicAndPrivateKeys(
             public_keys,
             private_keys.clone(),
-        )));
+        ),
+        GenesisMarkOptions::None,
+    );
 
     //
     // Convert to envelope with encrypted private keys using Argon2id.
@@ -699,9 +715,10 @@ fn xid_document_with_encrypted_multiple_keys() {
     // Create an XID document with inception key.
     //
     let inception_base = PrivateKeyBase::new_using(&mut rng);
-    let mut xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(inception_base.clone()),
-    ));
+    let mut xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(inception_base.clone()),
+        GenesisMarkOptions::None,
+    );
 
     //
     // Add a second key with private key material.
@@ -743,9 +760,10 @@ fn xid_document_private_key_modes() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
 
     //
     // Mode 1: Omit private keys (default)
@@ -873,9 +891,10 @@ fn xid_document_encrypted_with_different_methods() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let password = b"test_password";
 
     //
@@ -973,9 +992,10 @@ fn xid_document_reencrypt_with_different_password() {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let private_keys = private_key_base.private_keys();
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let password1 = b"first_password";
     let password2 = b"second_password";
 
@@ -1077,9 +1097,10 @@ fn xid_document_change_encryption_method() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let password = b"shared_password";
 
     //
@@ -1145,9 +1166,10 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let private_keys = private_key_base.private_keys();
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let password = b"test_password";
 
     //
@@ -1256,9 +1278,10 @@ fn xid_document_switch_between_storage_modes() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let password = b"mode_switch_password";
 
     //
@@ -1329,9 +1352,10 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
 
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
-    let xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PrivateKeyBase(private_key_base.clone()),
-    ));
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let password = b"secret_password";
 
     //
@@ -1414,9 +1438,10 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
 #[test]
 fn private_key_envelope_for_key() {
     let prvkey_base = PrivateKeyBase::new();
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
-        prvkey_base.clone(),
-    )));
+    let doc = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(prvkey_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let pubkeys = doc.inception_key().unwrap().public_keys().clone();
 
     // Get unencrypted private key
@@ -1435,9 +1460,10 @@ fn private_key_envelope_for_key_encrypted() {
     let password = "test-password";
 
     // Create document with encrypted key
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
-        prvkey_base.clone(),
-    )));
+    let doc = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(prvkey_base.clone()),
+        GenesisMarkOptions::None,
+    );
     let envelope_encrypted =
         doc.to_unsigned_envelope_opt(PrivateKeyOptions::Encrypt {
             method: KeyDerivationMethod::Argon2id,
@@ -1475,9 +1501,10 @@ fn private_key_envelope_for_key_encrypted() {
 #[test]
 fn private_key_envelope_for_key_not_found() {
     let prvkey_base = PrivateKeyBase::new();
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
-        prvkey_base.clone(),
-    )));
+    let doc = XIDDocument::new(
+        InceptionKeyOptions::PrivateKeyBase(prvkey_base.clone()),
+        GenesisMarkOptions::None,
+    );
 
     // Try to get key that doesn't exist
     let other_pubkeys = PrivateKeyBase::new().public_keys();
@@ -1491,9 +1518,10 @@ fn private_key_envelope_for_key_not_found() {
 fn private_key_envelope_for_key_no_private_key() {
     // Create document with public key only
     let pubkeys = PrivateKeyBase::new().public_keys();
-    let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PublicKey(
-        pubkeys.clone(),
-    )));
+    let doc = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(pubkeys.clone()),
+        GenesisMarkOptions::None,
+    );
 
     // Should return None (no private key present)
     let result = doc.private_key_envelope_for_key(&pubkeys, None).unwrap();
@@ -1502,7 +1530,10 @@ fn private_key_envelope_for_key_no_private_key() {
 
 #[test]
 fn new_xid_document() {
-    let xid_document = XIDDocument::new(None);
+    let xid_document = XIDDocument::new(
+        InceptionKeyOptions::Default,
+        GenesisMarkOptions::None,
+    );
     println!(
         "{}",
         xid_document

@@ -11,7 +11,10 @@ use known_values::{
     DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW, KEY, KEY_RAW,
     PROVENANCE, PROVENANCE_RAW, SERVICE, SERVICE_RAW,
 };
-use provenance_mark::ProvenanceMark;
+use provenance_mark::{
+    ProvenanceMark, ProvenanceMarkGenerator, ProvenanceMarkResolution,
+    ProvenanceSeed,
+};
 
 use super::{Delegate, Key};
 use crate::{
@@ -25,82 +28,119 @@ pub struct XIDDocument {
     keys: HashSet<Key>,
     delegates: HashSet<Delegate>,
     services: HashSet<Service>,
-    provenance: Option<ProvenanceMark>,
+    provenance_mark: Option<ProvenanceMark>,
+    provenance_mark_generator: Option<ProvenanceMarkGenerator>,
 }
 
-pub enum XIDDocumentKeyOptions {
-    PublicKey(PublicKeys),
-    PublicAndPrivateKey(PublicKeys, PrivateKeys),
+#[derive(Default)]
+pub enum InceptionKeyOptions {
+    #[default]
+    Default,
+    PublicKeys(PublicKeys),
+    PublicAndPrivateKeys(PublicKeys, PrivateKeys),
     PrivateKeyBase(PrivateKeyBase),
 }
 
+#[derive(Default)]
+pub enum GenesisMarkOptions {
+    #[default]
+    None,
+    Passphrase(
+        String,
+        Option<ProvenanceMarkResolution>,
+        Option<Date>,
+        Option<CBOR>,
+    ),
+    Seed(
+        ProvenanceSeed,
+        Option<ProvenanceMarkResolution>,
+        Option<Date>,
+        Option<CBOR>,
+    ),
+}
+
 impl XIDDocument {
-    pub fn new(key_options: Option<XIDDocumentKeyOptions>) -> Self {
-        let (xid, keys) = match key_options {
-            None => {
+    pub fn new(
+        key_options: InceptionKeyOptions,
+        mark_options: GenesisMarkOptions,
+    ) -> Self {
+        let inception_key = Self::inception_key_for_options(key_options);
+        let (provenance_mark_generator, provenance_mark) =
+            match Self::genesis_mark_with_options(mark_options) {
+                Some((generator, mark)) => (Some(generator), Some(mark)),
+                None => (None, None),
+            };
+
+        let mut xid_doc = Self {
+            xid: XID::new(inception_key.public_keys().signing_public_key()),
+            resolution_methods: HashSet::new(),
+            keys: HashSet::new(),
+            delegates: HashSet::new(),
+            services: HashSet::new(),
+            provenance_mark,
+            provenance_mark_generator,
+        };
+
+        xid_doc.add_key(inception_key).unwrap();
+
+        xid_doc
+    }
+
+    fn inception_key_for_options(options: InceptionKeyOptions) -> Key {
+        match options {
+            InceptionKeyOptions::Default => {
                 // Default: generate a new key pair and include private key
                 let private_key_base = PrivateKeyBase::new();
                 let public_keys = private_key_base.public_keys();
                 let private_keys = private_key_base.private_keys();
-                let xid = XID::new(public_keys.signing_public_key());
-                let inception_key =
-                    Key::new_with_private_keys(private_keys, public_keys);
-                let mut keys = HashSet::new();
-                keys.insert(inception_key);
-                (xid, keys)
+                Key::new_with_private_keys(private_keys, public_keys)
             }
-            Some(XIDDocumentKeyOptions::PublicKey(public_keys)) => {
+            InceptionKeyOptions::PublicKeys(public_keys) => {
                 // Public key only, no private key
-                let xid = XID::new(public_keys.signing_public_key());
-                let inception_key = Key::new_allow_all(&public_keys);
-                let mut keys = HashSet::new();
-                keys.insert(inception_key);
-                (xid, keys)
+                Key::new_allow_all(&public_keys)
             }
-            Some(XIDDocumentKeyOptions::PublicAndPrivateKey(
+            InceptionKeyOptions::PublicAndPrivateKeys(
                 public_keys,
                 private_keys,
-            )) => {
+            ) => {
                 // Both public and private keys
-                let xid = XID::new(public_keys.signing_public_key());
-                let inception_key =
-                    Key::new_with_private_keys(private_keys, public_keys);
-                let mut keys = HashSet::new();
-                keys.insert(inception_key);
-                (xid, keys)
+                Key::new_with_private_keys(private_keys, public_keys)
             }
-            Some(XIDDocumentKeyOptions::PrivateKeyBase(private_key_base)) => {
+            InceptionKeyOptions::PrivateKeyBase(private_key_base) => {
                 // Derive both keys from private key base
                 let public_keys = private_key_base.public_keys();
                 let private_keys = private_key_base.private_keys();
-                let xid = XID::new(public_keys.signing_public_key());
-                let inception_key =
-                    Key::new_with_private_keys(private_keys, public_keys);
-                let mut keys = HashSet::new();
-                keys.insert(inception_key);
-                (xid, keys)
+                Key::new_with_private_keys(private_keys, public_keys)
             }
-        };
-
-        Self {
-            xid,
-            resolution_methods: HashSet::new(),
-            keys,
-            delegates: HashSet::new(),
-            services: HashSet::new(),
-            provenance: None,
         }
     }
 
-    pub fn new_with_provenance(
-        inception_public_key: PublicKeys,
-        provenance: ProvenanceMark,
-    ) -> Self {
-        let mut doc = Self::new(Some(XIDDocumentKeyOptions::PublicKey(
-            inception_public_key,
-        )));
-        doc.provenance = Some(provenance);
-        doc
+    fn genesis_mark_with_options(
+        options: GenesisMarkOptions,
+    ) -> Option<(ProvenanceMarkGenerator, ProvenanceMark)> {
+        use ProvenanceMarkGenerator;
+        match options {
+            GenesisMarkOptions::None => None,
+            GenesisMarkOptions::Passphrase(passphrase, res, date, info) => {
+                let mut generator =
+                    ProvenanceMarkGenerator::new_with_passphrase(
+                        res.unwrap_or(ProvenanceMarkResolution::High),
+                        &passphrase,
+                    );
+                let date = date.unwrap_or_else(dcbor::Date::now);
+                let mark = generator.next(date, info);
+                Some((generator, mark))
+            }
+            GenesisMarkOptions::Seed(seed, res, date, info) => {
+                let mut generator = ProvenanceMarkGenerator::new_with_seed(
+                    res.unwrap_or(ProvenanceMarkResolution::High),
+                    seed,
+                );
+                let date = date.unwrap_or_else(dcbor::Date::now);
+                let mark = generator.next(date, info);
+                Some((generator, mark))
+            }
+        }
     }
 
     pub fn from_xid(xid: impl Into<XID>) -> Self {
@@ -110,7 +150,8 @@ impl XIDDocument {
             keys: HashSet::new(),
             delegates: HashSet::new(),
             services: HashSet::new(),
-            provenance: None,
+            provenance_mark: None,
+            provenance_mark_generator: None,
         }
     }
 
@@ -181,12 +222,13 @@ impl XIDDocument {
     /// ```
     /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
     /// use bc_envelope::prelude::*;
-    /// use bc_xid::{XIDDocument, XIDDocumentKeyOptions};
+    /// use bc_xid::{InceptionKeyOptions, XIDDocument, GenesisMarkOptions};
     ///
     /// let prvkey_base = PrivateKeyBase::new();
-    /// let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
-    ///     prvkey_base.clone(),
-    /// )));
+    /// let doc = XIDDocument::new(
+    ///     InceptionKeyOptions::PrivateKeyBase(prvkey_base.clone()),
+    ///     GenesisMarkOptions::None,
+    /// );
     ///
     /// // Get unencrypted private key
     /// let key = doc.keys().iter().next().unwrap();
@@ -323,7 +365,7 @@ impl XIDDocument {
         self.resolution_methods.is_empty()
             && self.keys.is_empty()
             && self.delegates.is_empty()
-            && self.provenance.is_none()
+            && self.provenance_mark.is_none()
     }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
@@ -511,11 +553,11 @@ impl XIDDocument {
     }
 
     pub fn provenance(&self) -> Option<&ProvenanceMark> {
-        self.provenance.as_ref()
+        self.provenance_mark.as_ref()
     }
 
     pub fn set_provenance(&mut self, provenance: Option<ProvenanceMark>) {
-        self.provenance = provenance;
+        self.provenance_mark = provenance;
     }
 
     pub fn to_unsigned_envelope(&self) -> Envelope {
@@ -565,7 +607,7 @@ impl XIDDocument {
 
         // Add the provenance mark if any.
         envelope = envelope
-            .add_optional_assertion(PROVENANCE, self.provenance.clone());
+            .add_optional_assertion(PROVENANCE, self.provenance_mark.clone());
 
         envelope
     }
@@ -711,7 +753,9 @@ impl XIDDocument {
 }
 
 impl Default for XIDDocument {
-    fn default() -> Self { Self::new(None) }
+    fn default() -> Self {
+        Self::new(InceptionKeyOptions::Default, GenesisMarkOptions::None)
+    }
 }
 
 impl XIDProvider for XIDDocument {
@@ -736,23 +780,28 @@ impl From<XID> for XIDDocument {
 
 impl From<PublicKeys> for XIDDocument {
     fn from(inception_key: PublicKeys) -> Self {
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PublicKey(inception_key)))
+        XIDDocument::new(
+            InceptionKeyOptions::PublicKeys(inception_key),
+            GenesisMarkOptions::None,
+        )
     }
 }
 
 impl From<PrivateKeyBase> for XIDDocument {
     fn from(inception_key: PrivateKeyBase) -> Self {
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
-            inception_key,
-        )))
+        XIDDocument::new(
+            InceptionKeyOptions::PrivateKeyBase(inception_key),
+            GenesisMarkOptions::None,
+        )
     }
 }
 
 impl From<&PrivateKeyBase> for XIDDocument {
     fn from(inception_key: &PrivateKeyBase) -> Self {
-        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(
-            inception_key.clone(),
-        )))
+        XIDDocument::new(
+            InceptionKeyOptions::PrivateKeyBase(inception_key.clone()),
+            GenesisMarkOptions::None,
+        )
     }
 }
 

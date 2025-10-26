@@ -4,7 +4,8 @@ use bc_components::{PublicKeysProvider, URI};
 use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
 use bc_rand::make_fake_random_number_generator;
 use bc_xid::{
-    HasPermissions, Privilege, Service, XIDDocument, XIDDocumentKeyOptions,
+    GenesisMarkOptions, HasPermissions, InceptionKeyOptions, Privilege,
+    Service, XIDDocument,
 };
 
 #[test]
@@ -18,9 +19,10 @@ fn test_1() {
 
     let bob_private_key_base = PrivateKeyBase::new_using(&mut rng);
     let bob_public_keys = bob_private_key_base.public_keys();
-    let bob_xid_document = XIDDocument::new(Some(
-        XIDDocumentKeyOptions::PublicKey(bob_public_keys),
-    ));
+    let bob_xid_document = XIDDocument::new(
+        InceptionKeyOptions::PublicKeys(bob_public_keys),
+        GenesisMarkOptions::Passphrase("test".to_string(), None, None, None),
+    );
 
     let mut service =
         Service::new(URI::try_from("https://example.com").unwrap());

@@ -45,6 +45,9 @@ pub use permissions::*;
 mod key;
 pub use key::*;
 
+mod provenance;
+pub use provenance::*;
+
 mod service;
 pub use service::*;
 

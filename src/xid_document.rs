@@ -92,55 +92,13 @@ impl XIDDocument {
         }
     }
 
-    pub fn new_with_inception_public_key(
-        inception_public_key: impl AsRef<PublicKeys>,
-    ) -> Self {
-        let xid = XID::new(inception_public_key.as_ref().signing_public_key());
-        let mut doc = Self {
-            xid,
-            resolution_methods: HashSet::new(),
-            keys: HashSet::new(),
-            delegates: HashSet::new(),
-            services: HashSet::new(),
-            provenance: None,
-        };
-        doc.add_key(Key::new_allow_all(&inception_public_key))
-            .unwrap();
-        doc
-    }
-
-    pub fn new_with_keys(
-        inception_private_keys: PrivateKeys,
-        inception_public_keys: PublicKeys,
-    ) -> Self {
-        let xid = XID::new(inception_public_keys.signing_public_key());
-        let inception_key = Key::new_with_private_keys(
-            inception_private_keys,
-            inception_public_keys,
-        );
-        let mut keys = HashSet::new();
-        keys.insert(inception_key.clone());
-        Self {
-            xid,
-            resolution_methods: HashSet::new(),
-            keys,
-            delegates: HashSet::new(),
-            services: HashSet::new(),
-            provenance: None,
-        }
-    }
-
-    pub fn new_with_private_key_base(private_key_base: PrivateKeyBase) -> Self {
-        let public_keys = private_key_base.public_keys();
-        let private_keys = private_key_base.private_keys();
-        Self::new_with_keys(private_keys, public_keys)
-    }
-
     pub fn new_with_provenance(
         inception_public_key: PublicKeys,
         provenance: ProvenanceMark,
     ) -> Self {
-        let mut doc = Self::new(Some(XIDDocumentKeyOptions::PublicKey(inception_public_key)));
+        let mut doc = Self::new(Some(XIDDocumentKeyOptions::PublicKey(
+            inception_public_key,
+        )));
         doc.provenance = Some(provenance);
         doc
     }
@@ -224,12 +182,12 @@ impl XIDDocument {
     /// # Examples
     ///
     /// ```
-    /// use bc_xid::XIDDocument;
+    /// use bc_xid::{XIDDocument, XIDDocumentKeyOptions};
     /// use bc_envelope::prelude::*;
     /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
     ///
     /// let prvkey_base = PrivateKeyBase::new();
-    /// let doc = XIDDocument::new_with_private_key_base(prvkey_base.clone());
+    /// let doc = XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(prvkey_base.clone())));
     ///
     /// // Get unencrypted private key
     /// let key = doc.keys().iter().next().unwrap();
@@ -798,13 +756,13 @@ impl From<PublicKeys> for XIDDocument {
 
 impl From<PrivateKeyBase> for XIDDocument {
     fn from(inception_key: PrivateKeyBase) -> Self {
-        XIDDocument::new_with_private_key_base(inception_key)
+        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(inception_key)))
     }
 }
 
 impl From<&PrivateKeyBase> for XIDDocument {
     fn from(inception_key: &PrivateKeyBase) -> Self {
-        XIDDocument::new_with_private_key_base(inception_key.clone())
+        XIDDocument::new(Some(XIDDocumentKeyOptions::PrivateKeyBase(inception_key.clone())))
     }
 }
 

@@ -13,12 +13,12 @@ categories = ["cryptography"]                                          # https:/
 
 [dependencies]
 
-dcbor = { version = "^0.23.1", features = ["multithreaded"] }
-bc-components = "^0.26.0"
-bc-envelope = { version = "^0.35.0", features = ["multithreaded"] }
-bc-ur = "^0.14.0"
+dcbor = { version = "^0.23.2", features = ["multithreaded"] }
+bc-components = "^0.27.0"
+bc-envelope = { version = "^0.36.0", features = ["multithreaded"] }
+bc-ur = "^0.15.0"
 bc-rand = "^0.4.1"
-provenance-mark = { version = "^0.14.0", features = ["envelope"] }
+provenance-mark = { version = "^0.15.0", features = ["envelope"] }
 
 hex = "^0.4.3"
 thiserror = "^2.0"

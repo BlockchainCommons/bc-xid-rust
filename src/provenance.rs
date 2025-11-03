@@ -132,7 +132,7 @@ impl Provenance {
 
 /// Options for handling generators in envelopes.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub enum GeneratorOptions {
+pub enum MarkGeneratorOptions {
     /// Omit the generator from the envelope (default).
     #[default]
     Omit,
@@ -162,8 +162,11 @@ impl Provenance {
             GeneratorData::Encrypted(encrypted_envelope) => {
                 // Already encrypted, just wrap with provenanceGenerator predicate and
                 // salt
-                Envelope::new_assertion(PROVENANCE_GENERATOR, encrypted_envelope)
-                    .add_salt_instance(salt)
+                Envelope::new_assertion(
+                    PROVENANCE_GENERATOR,
+                    encrypted_envelope,
+                )
+                .add_salt_instance(salt)
             }
         }
     }
@@ -229,7 +232,7 @@ impl Provenance {
 
     pub fn into_envelope_opt(
         self,
-        generator_options: GeneratorOptions,
+        generator_options: MarkGeneratorOptions,
     ) -> Envelope {
         let mut envelope = Envelope::new(self.mark().clone());
         if let Some((generator_data, _)) = &self.generator {
@@ -246,21 +249,21 @@ impl Provenance {
                 GeneratorData::Decrypted(_) => {
                     // For decrypted generators, respect the generator_options
                     match generator_options {
-                        GeneratorOptions::Include => {
+                        MarkGeneratorOptions::Include => {
                             let assertion_envelope =
                                 self.generator_assertion_envelope();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        GeneratorOptions::Elide => {
+                        MarkGeneratorOptions::Elide => {
                             let assertion_envelope =
                                 self.generator_assertion_envelope().elide();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        GeneratorOptions::Encrypt { method, password } => {
+                        MarkGeneratorOptions::Encrypt { method, password } => {
                             let (generator, salt) =
                                 self.generator.clone().unwrap();
 
@@ -313,7 +316,7 @@ impl Provenance {
                                 }
                             }
                         }
-                        GeneratorOptions::Omit => {
+                        MarkGeneratorOptions::Omit => {
                             // Omit decrypted generators
                         }
                     }
@@ -327,7 +330,7 @@ impl Provenance {
 
 impl EnvelopeEncodable for Provenance {
     fn into_envelope(self) -> Envelope {
-        self.into_envelope_opt(GeneratorOptions::Omit)
+        self.into_envelope_opt(MarkGeneratorOptions::Omit)
     }
 }
 

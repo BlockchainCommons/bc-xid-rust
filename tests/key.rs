@@ -112,7 +112,7 @@ fn test_with_private_key() {
     assert_actual_expected!(envelope_including_private_key.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
             {
-                'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
             } [
                 'salt': Salt
             ]
@@ -355,7 +355,7 @@ fn test_key_private_key_storage_modes() {
     assert_actual_expected!(envelope_include.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
             {
-                'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
             } [
                 'salt': Salt
             ]

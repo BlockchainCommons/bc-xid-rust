@@ -407,7 +407,7 @@ fn with_private_key() {
             XID(71274df1) [
                 'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     {
-                        'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                        'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                     } [
                         'salt': Salt
                     ]
@@ -793,7 +793,7 @@ fn xid_document_private_key_modes() {
         XID(71274df1) [
             'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
-                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                 } [
                     'salt': Salt
                 ]
@@ -1183,7 +1183,7 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
         XID(71274df1) [
             'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 {
-                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, ECPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
                 } [
                     'salt': Salt
                 ]

@@ -86,7 +86,8 @@ fn test_with_generator() {
     // The generator can be included in the envelope by explicitly
     // specifying that it should be included.
     //
-    // The 'provenanceGenerator' assertion is salted to decorrelate the generator.
+    // The 'provenanceGenerator' assertion is salted to decorrelate the
+    // generator.
     //
 
     let envelope_including_generator = provenance_including_generator

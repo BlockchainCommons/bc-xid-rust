@@ -42,9 +42,7 @@ pub struct Provenance {
 }
 
 impl Provenance {
-    pub fn new(mark: ProvenanceMark) -> Self {
-        Self { mark, generator: None }
-    }
+    pub fn new(mark: ProvenanceMark) -> Self { Self { mark, generator: None } }
 
     pub fn new_with_generator(
         generator: ProvenanceMarkGenerator,
@@ -57,9 +55,7 @@ impl Provenance {
         }
     }
 
-    pub fn mark(&self) -> &ProvenanceMark {
-        &self.mark
-    }
+    pub fn mark(&self) -> &ProvenanceMark { &self.mark }
 
     pub fn generator(&self) -> Option<&ProvenanceMarkGenerator> {
         self.generator.as_ref().and_then(|(data, _)| match data {
@@ -160,8 +156,8 @@ impl Provenance {
                     .add_salt_instance(salt)
             }
             GeneratorData::Encrypted(encrypted_envelope) => {
-                // Already encrypted, just wrap with provenanceGenerator predicate and
-                // salt
+                // Already encrypted, just wrap with provenanceGenerator
+                // predicate and salt
                 Envelope::new_assertion(
                     PROVENANCE_GENERATOR,
                     encrypted_envelope,
@@ -279,8 +275,8 @@ impl Provenance {
                                         .lock_subject(method, password)
                                         .expect("Failed to encrypt generator");
 
-                                    // Create the provenanceGenerator assertion with the
-                                    // encrypted envelope
+                                    // Create the provenanceGenerator assertion
+                                    // with the encrypted envelope
                                     let assertion_envelope =
                                         Envelope::new_assertion(
                                             PROVENANCE_GENERATOR,

@@ -18,7 +18,7 @@ use provenance_mark::{
 
 use super::{Delegate, Key};
 use crate::{
-    Error, HasNickname, HasPermissions, PrivateKeyOptions, Result, Service,
+    Error, HasNickname, HasPermissions, MarkGeneratorOptions, PrivateKeyOptions, Provenance, Result, Service
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,7 +222,7 @@ impl XIDDocument {
     /// ```
     /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
     /// use bc_envelope::prelude::*;
-    /// use bc_xid::{InceptionKeyOptions, XIDDocument, GenesisMarkOptions};
+    /// use bc_xid::{GenesisMarkOptions, InceptionKeyOptions, XIDDocument};
     ///
     /// let prvkey_base = PrivateKeyBase::new();
     /// let doc = XIDDocument::new(
@@ -608,6 +608,66 @@ impl XIDDocument {
         // Add the provenance mark if any.
         envelope = envelope
             .add_optional_assertion(PROVENANCE, self.provenance_mark.clone());
+
+        envelope
+    }
+
+    pub fn to_unsigned_envelope_opt_with_generator(
+        &self,
+        private_key_options: PrivateKeyOptions,
+        generator_options: MarkGeneratorOptions,
+    ) -> Envelope {
+        let mut envelope = Envelope::new(self.xid);
+
+        // Add an assertion for each resolution method.
+        envelope = self
+            .resolution_methods
+            .iter()
+            .cloned()
+            .fold(envelope, |envelope, method| {
+                envelope.add_assertion(DEREFERENCE_VIA, method)
+            });
+
+        // Add an assertion for each key in the set.
+        envelope = self.keys.iter().cloned().fold(envelope, |envelope, key| {
+            envelope.add_assertion(
+                KEY,
+                key.into_envelope_opt(private_key_options.clone()),
+            )
+        });
+
+        // Add an assertion for each delegate.
+        envelope = self
+            .delegates
+            .iter()
+            .cloned()
+            .fold(envelope, |envelope, delegate| {
+                envelope.add_assertion(DELEGATE, delegate)
+            });
+
+        // Add an assertion for each service.
+        envelope = self
+            .services
+            .iter()
+            .cloned()
+            .fold(envelope, |envelope, service| {
+                envelope.add_assertion(SERVICE, service)
+            });
+
+        // Add the provenance mark with optional generator.
+        if let Some(mark) = &self.provenance_mark {
+            let provenance = if let Some(generator) =
+                &self.provenance_mark_generator
+            {
+                Provenance::new_with_generator(generator.clone(), mark.clone())
+            } else {
+                Provenance::new(mark.clone())
+            };
+            envelope = envelope.add_assertion(
+                PROVENANCE,
+                provenance.into_envelope_opt(generator_options),
+            );
+        }
 
         envelope
     }

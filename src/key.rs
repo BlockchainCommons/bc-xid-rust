@@ -240,7 +240,7 @@ impl HasPermissions for Key {
 
 /// Options for handling private keys in envelopes.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub enum PrivateKeyOptions {
+pub enum XIDPrivateKeyOptions {
     /// Omit the private key from the envelope (default).
     #[default]
     Omit,
@@ -337,7 +337,7 @@ impl Key {
 
     pub fn into_envelope_opt(
         self,
-        private_key_options: PrivateKeyOptions,
+        private_key_options: XIDPrivateKeyOptions,
     ) -> Envelope {
         let mut envelope = Envelope::new(self.public_keys().clone());
         if let Some((private_key_data, _)) = &self.private_keys {
@@ -353,21 +353,21 @@ impl Key {
                 PrivateKeyData::Decrypted(_) => {
                     // For decrypted keys, respect the private_key_options
                     match private_key_options {
-                        PrivateKeyOptions::Include => {
+                        XIDPrivateKeyOptions::Include => {
                             let assertion_envelope =
                                 self.private_key_assertion_envelope();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        PrivateKeyOptions::Elide => {
+                        XIDPrivateKeyOptions::Elide => {
                             let assertion_envelope =
                                 self.private_key_assertion_envelope().elide();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        PrivateKeyOptions::Encrypt { method, password } => {
+                        XIDPrivateKeyOptions::Encrypt { method, password } => {
                             let (private_keys, salt) =
                                 self.private_keys.clone().unwrap();
 
@@ -423,7 +423,7 @@ impl Key {
                                 }
                             }
                         }
-                        PrivateKeyOptions::Omit => {
+                        XIDPrivateKeyOptions::Omit => {
                             // Omit decrypted private keys
                         }
                     }
@@ -449,7 +449,7 @@ impl Key {
 
 impl EnvelopeEncodable for Key {
     fn into_envelope(self) -> Envelope {
-        self.into_envelope_opt(PrivateKeyOptions::Omit)
+        self.into_envelope_opt(XIDPrivateKeyOptions::Omit)
     }
 }
 

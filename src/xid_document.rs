@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use bc_components::{
     EncapsulationPublicKey, PrivateKeyBase, PrivateKeys, PrivateKeysProvider,
     PublicKeys, PublicKeysProvider, Reference, ReferenceProvider, Signer,
-    SigningPublicKey, URI, XID, XIDProvider, tags::TAG_XID,
+    SigningPrivateKey, SigningPublicKey, URI, XID, XIDProvider, tags::TAG_XID,
 };
 use bc_envelope::prelude::*;
 use dcbor::prelude::CBORError;
@@ -18,7 +18,8 @@ use provenance_mark::{
 
 use super::{Delegate, Key};
 use crate::{
-    Error, HasNickname, HasPermissions, MarkGeneratorOptions, PrivateKeyOptions, Provenance, Result, Service
+    Error, HasNickname, HasPermissions, Provenance, Result, Service,
+    XIDGeneratorOptions, XIDPrivateKeyOptions,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +34,7 @@ pub struct XIDDocument {
 }
 
 #[derive(Default)]
-pub enum InceptionKeyOptions {
+pub enum XIDInceptionKeyOptions {
     #[default]
     Default,
     PublicKeys(PublicKeys),
@@ -42,7 +43,7 @@ pub enum InceptionKeyOptions {
 }
 
 #[derive(Default)]
-pub enum GenesisMarkOptions {
+pub enum XIDGenesisMarkOptions {
     #[default]
     None,
     Passphrase(
@@ -59,10 +60,27 @@ pub enum GenesisMarkOptions {
     ),
 }
 
+/// Options for signing an envelope.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum XIDSigningOptions {
+    /// Do not sign the envelope (default).
+    #[default]
+    None,
+
+    /// Sign with the XID's inception key (must be available as a signing key).
+    Inception,
+
+    /// Sign with a provided `PrivateKeys`.
+    PrivateKeys(PrivateKeys),
+
+    /// Sign with a provided `SigningPrivateKey`.
+    SigningPrivateKey(SigningPrivateKey),
+}
+
 impl XIDDocument {
     pub fn new(
-        key_options: InceptionKeyOptions,
-        mark_options: GenesisMarkOptions,
+        key_options: XIDInceptionKeyOptions,
+        mark_options: XIDGenesisMarkOptions,
     ) -> Self {
         let inception_key = Self::inception_key_for_options(key_options);
         let (provenance_mark_generator, provenance_mark) =
@@ -86,27 +104,27 @@ impl XIDDocument {
         xid_doc
     }
 
-    fn inception_key_for_options(options: InceptionKeyOptions) -> Key {
+    fn inception_key_for_options(options: XIDInceptionKeyOptions) -> Key {
         match options {
-            InceptionKeyOptions::Default => {
+            XIDInceptionKeyOptions::Default => {
                 // Default: generate a new key pair and include private key
                 let private_key_base = PrivateKeyBase::new();
                 let public_keys = private_key_base.public_keys();
                 let private_keys = private_key_base.private_keys();
                 Key::new_with_private_keys(private_keys, public_keys)
             }
-            InceptionKeyOptions::PublicKeys(public_keys) => {
+            XIDInceptionKeyOptions::PublicKeys(public_keys) => {
                 // Public key only, no private key
                 Key::new_allow_all(&public_keys)
             }
-            InceptionKeyOptions::PublicAndPrivateKeys(
+            XIDInceptionKeyOptions::PublicAndPrivateKeys(
                 public_keys,
                 private_keys,
             ) => {
                 // Both public and private keys
                 Key::new_with_private_keys(private_keys, public_keys)
             }
-            InceptionKeyOptions::PrivateKeyBase(private_key_base) => {
+            XIDInceptionKeyOptions::PrivateKeyBase(private_key_base) => {
                 // Derive both keys from private key base
                 let public_keys = private_key_base.public_keys();
                 let private_keys = private_key_base.private_keys();
@@ -116,12 +134,12 @@ impl XIDDocument {
     }
 
     fn genesis_mark_with_options(
-        options: GenesisMarkOptions,
+        options: XIDGenesisMarkOptions,
     ) -> Option<(ProvenanceMarkGenerator, ProvenanceMark)> {
         use ProvenanceMarkGenerator;
         match options {
-            GenesisMarkOptions::None => None,
-            GenesisMarkOptions::Passphrase(passphrase, res, date, info) => {
+            XIDGenesisMarkOptions::None => None,
+            XIDGenesisMarkOptions::Passphrase(passphrase, res, date, info) => {
                 let mut generator =
                     ProvenanceMarkGenerator::new_with_passphrase(
                         res.unwrap_or(ProvenanceMarkResolution::High),
@@ -131,7 +149,7 @@ impl XIDDocument {
                 let mark = generator.next(date, info);
                 Some((generator, mark))
             }
-            GenesisMarkOptions::Seed(seed, res, date, info) => {
+            XIDGenesisMarkOptions::Seed(seed, res, date, info) => {
                 let mut generator = ProvenanceMarkGenerator::new_with_seed(
                     res.unwrap_or(ProvenanceMarkResolution::High),
                     seed,
@@ -174,9 +192,13 @@ impl XIDDocument {
         self.resolution_methods.take(method.as_ref())
     }
 
-    pub fn keys(&self) -> &HashSet<Key> { &self.keys }
+    pub fn keys(&self) -> &HashSet<Key> {
+        &self.keys
+    }
 
-    pub fn keys_mut(&mut self) -> &mut HashSet<Key> { &mut self.keys }
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
+        &mut self.keys
+    }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
         if self.find_key_by_public_keys(key.public_keys()).is_some() {
@@ -222,12 +244,12 @@ impl XIDDocument {
     /// ```
     /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
     /// use bc_envelope::prelude::*;
-    /// use bc_xid::{GenesisMarkOptions, InceptionKeyOptions, XIDDocument};
+    /// use bc_xid::{XIDGenesisMarkOptions, XIDInceptionKeyOptions, XIDDocument};
     ///
     /// let prvkey_base = PrivateKeyBase::new();
     /// let doc = XIDDocument::new(
-    ///     InceptionKeyOptions::PrivateKeyBase(prvkey_base.clone()),
-    ///     GenesisMarkOptions::None,
+    ///     XIDInceptionKeyOptions::PrivateKeyBase(prvkey_base.clone()),
+    ///     XIDGenesisMarkOptions::None,
     /// );
     ///
     /// // Get unencrypted private key
@@ -371,7 +393,9 @@ impl XIDDocument {
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
     #[allow(clippy::mutable_key_type)]
-    pub fn delegates(&self) -> &HashSet<Delegate> { &self.delegates }
+    pub fn delegates(&self) -> &HashSet<Delegate> {
+        &self.delegates
+    }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -441,7 +465,9 @@ impl XIDDocument {
         self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
-    pub fn services(&self) -> &HashSet<Service> { &self.services }
+    pub fn services(&self) -> &HashSet<Service> {
+        &self.services
+    }
 
     pub fn add_service(&mut self, service: Service) -> Result<()> {
         if self.find_service_by_uri(service.uri()).is_some() {
@@ -560,63 +586,13 @@ impl XIDDocument {
         self.provenance_mark = provenance;
     }
 
-    pub fn to_unsigned_envelope(&self) -> Envelope {
-        self.to_unsigned_envelope_opt(PrivateKeyOptions::default())
-    }
-
-    pub fn to_unsigned_envelope_opt(
+    /// Convert XIDDocument to an Envelope.
+    pub fn to_envelope(
         &self,
-        private_key_options: PrivateKeyOptions,
-    ) -> Envelope {
-        let mut envelope = Envelope::new(self.xid);
-
-        // Add an assertion for each resolution method.
-        envelope = self
-            .resolution_methods
-            .iter()
-            .cloned()
-            .fold(envelope, |envelope, method| {
-                envelope.add_assertion(DEREFERENCE_VIA, method)
-            });
-
-        // Add an assertion for each key in the set.
-        envelope = self.keys.iter().cloned().fold(envelope, |envelope, key| {
-            envelope.add_assertion(
-                KEY,
-                key.into_envelope_opt(private_key_options.clone()),
-            )
-        });
-
-        // Add an assertion for each delegate.
-        envelope = self
-            .delegates
-            .iter()
-            .cloned()
-            .fold(envelope, |envelope, delegate| {
-                envelope.add_assertion(DELEGATE, delegate)
-            });
-
-        // Add an assertion for each service.
-        envelope = self
-            .services
-            .iter()
-            .cloned()
-            .fold(envelope, |envelope, service| {
-                envelope.add_assertion(SERVICE, service)
-            });
-
-        // Add the provenance mark if any.
-        envelope = envelope
-            .add_optional_assertion(PROVENANCE, self.provenance_mark.clone());
-
-        envelope
-    }
-
-    pub fn to_unsigned_envelope_opt_with_generator(
-        &self,
-        private_key_options: PrivateKeyOptions,
-        generator_options: MarkGeneratorOptions,
-    ) -> Envelope {
+        private_key_options: XIDPrivateKeyOptions,
+        generator_options: XIDGeneratorOptions,
+        signing_options: XIDSigningOptions,
+    ) -> Result<Envelope> {
         let mut envelope = Envelope::new(self.xid);
 
         // Add an assertion for each resolution method.
@@ -669,7 +645,22 @@ impl XIDDocument {
             );
         }
 
-        envelope
+        // Apply signing options.
+        let envelope = match signing_options {
+            XIDSigningOptions::None => envelope,
+            XIDSigningOptions::Inception => {
+                let inception_key =
+                    self.inception_key().ok_or(Error::MissingInceptionKey)?;
+                let private_keys = inception_key
+                    .private_keys()
+                    .ok_or(Error::MissingInceptionKey)?;
+                envelope.sign(private_keys)
+            }
+            XIDSigningOptions::PrivateKeys(ref keys) => envelope.sign(keys),
+            XIDSigningOptions::SigningPrivateKey(ref key) => envelope.sign(key),
+        };
+
+        Ok(envelope)
     }
 
     pub fn from_unsigned_envelope(envelope: &Envelope) -> Result<Self> {
@@ -774,16 +765,24 @@ impl XIDDocument {
     }
 
     pub fn to_signed_envelope(&self, signing_key: &impl Signer) -> Envelope {
-        self.to_signed_envelope_opt(signing_key, PrivateKeyOptions::default())
+        self.to_signed_envelope_opt(
+            signing_key,
+            XIDPrivateKeyOptions::default(),
+        )
     }
 
     pub fn to_signed_envelope_opt(
         &self,
         signing_key: &impl Signer,
-        private_key_options: PrivateKeyOptions,
+        private_key_options: XIDPrivateKeyOptions,
     ) -> Envelope {
-        self.to_unsigned_envelope_opt(private_key_options)
-            .sign(signing_key)
+        self.to_envelope(
+            private_key_options,
+            XIDGeneratorOptions::default(),
+            XIDSigningOptions::None,
+        )
+        .expect("envelope should not fail")
+        .sign(signing_key)
     }
 
     pub fn try_from_signed_envelope(
@@ -814,35 +813,45 @@ impl XIDDocument {
 
 impl Default for XIDDocument {
     fn default() -> Self {
-        Self::new(InceptionKeyOptions::Default, GenesisMarkOptions::None)
+        Self::new(XIDInceptionKeyOptions::Default, XIDGenesisMarkOptions::None)
     }
 }
 
 impl XIDProvider for XIDDocument {
-    fn xid(&self) -> XID { self.xid }
+    fn xid(&self) -> XID {
+        self.xid
+    }
 }
 
 impl ReferenceProvider for XIDDocument {
-    fn reference(&self) -> Reference { self.xid.reference() }
+    fn reference(&self) -> Reference {
+        self.xid.reference()
+    }
 }
 
 impl AsRef<XIDDocument> for XIDDocument {
-    fn as_ref(&self) -> &XIDDocument { self }
+    fn as_ref(&self) -> &XIDDocument {
+        self
+    }
 }
 
 impl From<XIDDocument> for XID {
-    fn from(doc: XIDDocument) -> Self { doc.xid }
+    fn from(doc: XIDDocument) -> Self {
+        doc.xid
+    }
 }
 
 impl From<XID> for XIDDocument {
-    fn from(xid: XID) -> Self { XIDDocument::from_xid(xid) }
+    fn from(xid: XID) -> Self {
+        XIDDocument::from_xid(xid)
+    }
 }
 
 impl From<PublicKeys> for XIDDocument {
     fn from(inception_key: PublicKeys) -> Self {
         XIDDocument::new(
-            InceptionKeyOptions::PublicKeys(inception_key),
-            GenesisMarkOptions::None,
+            XIDInceptionKeyOptions::PublicKeys(inception_key),
+            XIDGenesisMarkOptions::None,
         )
     }
 }
@@ -850,8 +859,8 @@ impl From<PublicKeys> for XIDDocument {
 impl From<PrivateKeyBase> for XIDDocument {
     fn from(inception_key: PrivateKeyBase) -> Self {
         XIDDocument::new(
-            InceptionKeyOptions::PrivateKeyBase(inception_key),
-            GenesisMarkOptions::None,
+            XIDInceptionKeyOptions::PrivateKeyBase(inception_key),
+            XIDGenesisMarkOptions::None,
         )
     }
 }
@@ -859,14 +868,21 @@ impl From<PrivateKeyBase> for XIDDocument {
 impl From<&PrivateKeyBase> for XIDDocument {
     fn from(inception_key: &PrivateKeyBase) -> Self {
         XIDDocument::new(
-            InceptionKeyOptions::PrivateKeyBase(inception_key.clone()),
-            GenesisMarkOptions::None,
+            XIDInceptionKeyOptions::PrivateKeyBase(inception_key.clone()),
+            XIDGenesisMarkOptions::None,
         )
     }
 }
 
 impl EnvelopeEncodable for XIDDocument {
-    fn into_envelope(self) -> Envelope { self.to_unsigned_envelope() }
+    fn into_envelope(self) -> Envelope {
+        self.to_envelope(
+            XIDPrivateKeyOptions::default(),
+            XIDGeneratorOptions::default(),
+            XIDSigningOptions::default(),
+        )
+        .unwrap()
+    }
 }
 
 impl TryFrom<&Envelope> for XIDDocument {
@@ -886,11 +902,15 @@ impl TryFrom<Envelope> for XIDDocument {
 }
 
 impl CBORTagged for XIDDocument {
-    fn cbor_tags() -> Vec<Tag> { tags_for_values(&[TAG_XID]) }
+    fn cbor_tags() -> Vec<Tag> {
+        tags_for_values(&[TAG_XID])
+    }
 }
 
 impl From<XIDDocument> for CBOR {
-    fn from(value: XIDDocument) -> Self { value.tagged_cbor() }
+    fn from(value: XIDDocument) -> Self {
+        value.tagged_cbor()
+    }
 }
 
 impl CBORTaggedEncodable for XIDDocument {
@@ -898,7 +918,13 @@ impl CBORTaggedEncodable for XIDDocument {
         if self.is_empty() {
             return self.xid.untagged_cbor();
         }
-        self.to_envelope().to_cbor()
+        self.to_envelope(
+            XIDPrivateKeyOptions::default(),
+            XIDGeneratorOptions::default(),
+            XIDSigningOptions::None,
+        )
+        .expect("envelope should not fail")
+        .to_cbor()
     }
 }
 

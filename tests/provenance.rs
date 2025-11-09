@@ -2,7 +2,7 @@ mod common;
 
 use bc_components::KeyDerivationMethod;
 use bc_envelope::prelude::*;
-use bc_xid::{Error, MarkGeneratorOptions, Provenance};
+use bc_xid::{Error, XIDGeneratorOptions, Provenance};
 use dcbor::Date;
 use indoc::indoc;
 use provenance_mark::{ProvenanceMarkGenerator, ProvenanceMarkResolution};
@@ -92,7 +92,7 @@ fn test_with_generator() {
 
     let envelope_including_generator = provenance_including_generator
         .clone()
-        .into_envelope_opt(MarkGeneratorOptions::Include);
+        .into_envelope_opt(XIDGeneratorOptions::Include);
 
     #[rustfmt::skip]
     assert_actual_expected!(envelope_including_generator.format(), indoc! {r#"
@@ -126,7 +126,7 @@ fn test_with_generator() {
 
     let envelope_eliding_generator = provenance_including_generator
         .clone()
-        .into_envelope_opt(MarkGeneratorOptions::Elide);
+        .into_envelope_opt(XIDGeneratorOptions::Elide);
 
     #[rustfmt::skip]
     assert_actual_expected!(envelope_eliding_generator.format(), indoc! {r#"
@@ -182,7 +182,7 @@ fn test_provenance_with_encrypted_generator() {
     let envelope_encrypted =
         provenance
             .clone()
-            .into_envelope_opt(MarkGeneratorOptions::Encrypt {
+            .into_envelope_opt(XIDGeneratorOptions::Encrypt {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
@@ -257,7 +257,7 @@ fn test_provenance_encrypted_with_different_methods() {
     let envelope_argon2id =
         provenance
             .clone()
-            .into_envelope_opt(MarkGeneratorOptions::Encrypt {
+            .into_envelope_opt(XIDGeneratorOptions::Encrypt {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
@@ -284,7 +284,7 @@ fn test_provenance_encrypted_with_different_methods() {
     let envelope_pbkdf2 =
         provenance
             .clone()
-            .into_envelope_opt(MarkGeneratorOptions::Encrypt {
+            .into_envelope_opt(XIDGeneratorOptions::Encrypt {
                 method: KeyDerivationMethod::PBKDF2,
                 password: password.to_vec(),
             });
@@ -311,7 +311,7 @@ fn test_provenance_encrypted_with_different_methods() {
     let envelope_scrypt =
         provenance
             .clone()
-            .into_envelope_opt(MarkGeneratorOptions::Encrypt {
+            .into_envelope_opt(XIDGeneratorOptions::Encrypt {
                 method: KeyDerivationMethod::Scrypt,
                 password: password.to_vec(),
             });
@@ -377,7 +377,7 @@ fn test_provenance_generator_storage_modes() {
     //
     let envelope_include = provenance
         .clone()
-        .into_envelope_opt(MarkGeneratorOptions::Include);
+        .into_envelope_opt(XIDGeneratorOptions::Include);
     #[rustfmt::skip]
     assert_actual_expected!(envelope_include.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -403,7 +403,7 @@ fn test_provenance_generator_storage_modes() {
     //
     let envelope_elide = provenance
         .clone()
-        .into_envelope_opt(MarkGeneratorOptions::Elide);
+        .into_envelope_opt(XIDGeneratorOptions::Elide);
     #[rustfmt::skip]
     assert_actual_expected!(envelope_elide.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -422,7 +422,7 @@ fn test_provenance_generator_storage_modes() {
     let envelope_encrypt =
         provenance
             .clone()
-            .into_envelope_opt(MarkGeneratorOptions::Encrypt {
+            .into_envelope_opt(XIDGeneratorOptions::Encrypt {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
@@ -498,7 +498,7 @@ fn test_generator_envelope_encrypted_no_password() {
 
     // Encrypt the provenance
     let envelope_encrypted =
-        provenance.into_envelope_opt(MarkGeneratorOptions::Encrypt {
+        provenance.into_envelope_opt(XIDGeneratorOptions::Encrypt {
             method: KeyDerivationMethod::Argon2id,
             password: password.as_bytes().to_vec(),
         });
@@ -537,7 +537,7 @@ fn test_generator_envelope_encrypted_correct_password() {
 
     // Encrypt the provenance
     let envelope_encrypted =
-        provenance.into_envelope_opt(MarkGeneratorOptions::Encrypt {
+        provenance.into_envelope_opt(XIDGeneratorOptions::Encrypt {
             method: KeyDerivationMethod::Argon2id,
             password: password.as_bytes().to_vec(),
         });
@@ -571,7 +571,7 @@ fn test_generator_envelope_encrypted_wrong_password() {
 
     // Encrypt the provenance
     let envelope_encrypted =
-        provenance.into_envelope_opt(MarkGeneratorOptions::Encrypt {
+        provenance.into_envelope_opt(XIDGeneratorOptions::Encrypt {
             method: KeyDerivationMethod::Argon2id,
             password: password.as_bytes().to_vec(),
         });

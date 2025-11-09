@@ -128,7 +128,7 @@ impl Provenance {
 
 /// Options for handling generators in envelopes.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub enum MarkGeneratorOptions {
+pub enum XIDGeneratorOptions {
     /// Omit the generator from the envelope (default).
     #[default]
     Omit,
@@ -228,7 +228,7 @@ impl Provenance {
 
     pub fn into_envelope_opt(
         self,
-        generator_options: MarkGeneratorOptions,
+        generator_options: XIDGeneratorOptions,
     ) -> Envelope {
         let mut envelope = Envelope::new(self.mark().clone());
         if let Some((generator_data, _)) = &self.generator {
@@ -245,21 +245,21 @@ impl Provenance {
                 GeneratorData::Decrypted(_) => {
                     // For decrypted generators, respect the generator_options
                     match generator_options {
-                        MarkGeneratorOptions::Include => {
+                        XIDGeneratorOptions::Include => {
                             let assertion_envelope =
                                 self.generator_assertion_envelope();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        MarkGeneratorOptions::Elide => {
+                        XIDGeneratorOptions::Elide => {
                             let assertion_envelope =
                                 self.generator_assertion_envelope().elide();
                             envelope = envelope
                                 .add_assertion_envelope(assertion_envelope)
                                 .unwrap();
                         }
-                        MarkGeneratorOptions::Encrypt { method, password } => {
+                        XIDGeneratorOptions::Encrypt { method, password } => {
                             let (generator, salt) =
                                 self.generator.clone().unwrap();
 
@@ -312,7 +312,7 @@ impl Provenance {
                                 }
                             }
                         }
-                        MarkGeneratorOptions::Omit => {
+                        XIDGeneratorOptions::Omit => {
                             // Omit decrypted generators
                         }
                     }
@@ -326,7 +326,7 @@ impl Provenance {
 
 impl EnvelopeEncodable for Provenance {
     fn into_envelope(self) -> Envelope {
-        self.into_envelope_opt(MarkGeneratorOptions::Omit)
+        self.into_envelope_opt(XIDGeneratorOptions::Omit)
     }
 }
 

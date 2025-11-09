@@ -57,6 +57,12 @@ pub enum Error {
     #[error("invalid password")]
     InvalidPassword,
 
+    #[error("envelope is not signed")]
+    EnvelopeNotSigned,
+
+    #[error("signature verification failed")]
+    SignatureVerificationFailed,
+
     #[error("envelope parsing error")]
     EnvelopeParsing(#[from] bc_envelope::Error),
 

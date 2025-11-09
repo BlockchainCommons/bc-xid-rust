@@ -77,6 +77,17 @@ pub enum XIDSigningOptions {
     SigningPrivateKey(SigningPrivateKey),
 }
 
+/// Options for verifying the signature on an envelope when loading an XIDDocument.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum XIDVerifySignature {
+    /// Do not verify the signature (default).
+    #[default]
+    None,
+
+    /// Verify that the envelope is signed with the inception key.
+    Inception,
+}
+
 impl XIDDocument {
     pub fn new(
         key_options: XIDInceptionKeyOptions,
@@ -376,9 +387,10 @@ impl XIDDocument {
         envelope: &Envelope,
         password: &[u8],
     ) -> Result<Option<PrivateKeys>> {
-        let doc = Self::from_unsigned_envelope_with_password(
+        let doc = Self::from_envelope(
             envelope,
             Some(password),
+            XIDVerifySignature::None,
         )?;
         Ok(doc.inception_private_keys().cloned())
     }
@@ -663,25 +675,83 @@ impl XIDDocument {
         Ok(envelope)
     }
 
-    pub fn from_unsigned_envelope(envelope: &Envelope) -> Result<Self> {
-        Self::from_unsigned_envelope_with_password(envelope, None)
+    /// Extract an `XIDDocument` from an envelope.
+    ///
+    /// # Parameters
+    ///
+    /// - `envelope`: The envelope to extract the document from. Can be signed or unsigned.
+    /// - `password`: Optional password to decrypt encrypted private keys. If private keys
+    ///   are encrypted and no password is provided, the keys will be stored without their
+    ///   private key material.
+    /// - `verify_signature`: Signature verification mode. Use `XIDVerifySignature::None`
+    ///   to skip verification, or `XIDVerifySignature::Inception` to verify that the
+    ///   envelope is signed with the inception key.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(XIDDocument)` on success.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::EnvelopeNotSigned`: When `verify_signature` is `Inception` but the envelope
+    ///   is not signed.
+    /// - `Error::MissingInceptionKey`: When `verify_signature` is `Inception` but the
+    ///   inception key is not found in the document.
+    /// - `Error::SignatureVerificationFailed`: When the signature verification fails.
+    /// - `Error::InvalidXid`: When the inception key does not match the XID.
+    /// - Other errors from envelope parsing or key extraction.
+    pub fn from_envelope(
+        envelope: &Envelope,
+        password: Option<&[u8]>,
+        verify_signature: XIDVerifySignature,
+    ) -> Result<Self> {
+        match verify_signature {
+            XIDVerifySignature::None => {
+                // Extract from the envelope directly (unsigned or ignoring signature)
+                let envelope_to_parse = if envelope.subject().is_wrapped() {
+                    envelope.subject().try_unwrap()?
+                } else {
+                    envelope.clone()
+                };
+                Self::from_envelope_inner(&envelope_to_parse, password)
+            }
+            XIDVerifySignature::Inception => {
+                // Verify that the envelope is signed (subject must be wrapped)
+                if !envelope.subject().is_wrapped() {
+                    return Err(Error::EnvelopeNotSigned);
+                }
+
+                // Unwrap the envelope and construct a provisional XIDDocument
+                let unwrapped = envelope.try_unwrap()?;
+                let xid_document = Self::from_envelope_inner(&unwrapped, password)?;
+
+                // Extract the inception key from the provisional XIDDocument
+                let inception_key = xid_document
+                    .inception_signing_key()
+                    .ok_or(Error::MissingInceptionKey)?;
+
+                // Verify the signature on the envelope using the inception key
+                envelope.verify(inception_key)
+                    .map_err(|_| Error::SignatureVerificationFailed)?;
+
+                // Extract the XID from the provisional XIDDocument
+                let xid = xid_document.xid();
+
+                // Verify that the inception key is the one that generated the XID
+                if xid.validate(inception_key) {
+                    Ok(xid_document)
+                } else {
+                    Err(Error::InvalidXid)
+                }
+            }
+        }
     }
 
-    /// Extract an `XIDDocument` from an envelope, optionally providing a
-    /// password to decrypt encrypted private keys.
-    ///
-    /// If private keys are encrypted and no password is provided, the keys
-    /// will be stored without their private key material.
-    pub fn from_unsigned_envelope_with_password(
+    /// Internal helper method to extract an `XIDDocument` from an unwrapped envelope.
+    fn from_envelope_inner(
         envelope: &Envelope,
         password: Option<&[u8]>,
     ) -> Result<Self> {
-        //
-        // This technique is more robust than the commented-out technique below,
-        // because it will fail if there are unexpected attributes in the
-        // envelope.
-        //
-
         let xid: XID = envelope.subject().try_leaf()?.try_into()?;
         let mut xid_document = XIDDocument::from(xid);
         for assertion in envelope.assertions() {
@@ -726,42 +796,6 @@ impl XIDDocument {
         xid_document.check_services_consistency()?;
 
         Ok(xid_document)
-
-        //
-        // Do not use this technique to extract attributes from an envelope,
-        // unless you want to ignore unexpected attributes.
-        //
-
-        // let resolution_methods = envelope
-        //     .extract_objects_for_predicate::<URI>(DEREFERENCE_VIA)?
-        //     .into_iter()
-        //     .collect::<HashSet<_>>();
-
-        // let keys = envelope
-        //     .objects_for_predicate(KEY)
-        //     .into_iter()
-        //     .map(|key| key.try_into())
-        //     .collect::<Result<HashSet<_>>>()?;
-
-        // let delegates = envelope
-        //     .object_for_predicate(DELEGATE)
-        //     .into_iter()
-        //     .map(|delegate| delegate.try_into())
-        //     .collect::<Result<HashSet<_>>>()?;
-
-        // let provenance = match
-        // envelope.optional_object_for_predicate(PROVENANCE)? {
-        //     Some(p) => Some(ProvenanceMark::try_from(p)?),
-        //     None => None,
-        // };
-
-        // Ok(Self {
-        //     xid,
-        //     resolution_methods,
-        //     keys,
-        //     delegates,
-        //     provenance,
-        // })
     }
 
     pub fn to_signed_envelope(&self, signing_key: &impl Signer) -> Envelope {
@@ -783,31 +817,6 @@ impl XIDDocument {
         )
         .expect("envelope should not fail")
         .sign(signing_key)
-    }
-
-    pub fn try_from_signed_envelope(
-        signed_envelope: &Envelope,
-    ) -> Result<Self> {
-        // Unwrap the envelope and construct a provisional XIDDocument.
-        let xid_document =
-            XIDDocument::try_from(&signed_envelope.try_unwrap()?)?;
-        // Extract the inception key from the provisional XIDDocument, throwing
-        // an error if it is missing.
-        let inception_key = xid_document
-            .inception_signing_key()
-            .ok_or(Error::MissingInceptionKey)?;
-        // Verify the signature on the envelope using the inception key.
-        signed_envelope.verify(inception_key)?;
-        // Extract the XID from the provisional XIDDocument.
-        let xid = xid_document.xid();
-        // Verify that the inception key is the one that generated the XID.
-        if xid.validate(inception_key) {
-            // If the inception key is valid return the XIDDocument, now
-            // verified.
-            Ok(xid_document)
-        } else {
-            Err(Error::InvalidXid)
-        }
     }
 }
 
@@ -889,7 +898,7 @@ impl TryFrom<&Envelope> for XIDDocument {
     type Error = Error;
 
     fn try_from(envelope: &Envelope) -> Result<Self> {
-        Self::from_unsigned_envelope(envelope)
+        Self::from_envelope(envelope, None, XIDVerifySignature::None)
     }
 }
 

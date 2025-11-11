@@ -63,6 +63,25 @@ pub enum Error {
     #[error("signature verification failed")]
     SignatureVerificationFailed,
 
+    #[error("no provenance mark to advance")]
+    NoProvenanceMark,
+
+    #[error(
+        "document already has generator, cannot provide external generator"
+    )]
+    GeneratorConflict,
+
+    #[error(
+        "document does not have generator, must provide external generator"
+    )]
+    NoGenerator,
+
+    #[error("generator chain ID mismatch: expected {}, got {}", hex::encode(.expected), hex::encode(.actual))]
+    ChainIdMismatch { expected: Vec<u8>, actual: Vec<u8> },
+
+    #[error("generator sequence mismatch: expected {expected}, got {actual}")]
+    SequenceMismatch { expected: u32, actual: u32 },
+
     #[error("envelope parsing error")]
     EnvelopeParsing(#[from] bc_envelope::Error),
 

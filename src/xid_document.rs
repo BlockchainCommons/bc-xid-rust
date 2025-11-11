@@ -76,7 +76,8 @@ pub enum XIDSigningOptions {
     SigningPrivateKey(SigningPrivateKey),
 }
 
-/// Options for verifying the signature on an envelope when loading an XIDDocument.
+/// Options for verifying the signature on an envelope when loading an
+/// XIDDocument.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum XIDVerifySignature {
     /// Do not verify the signature (default).
@@ -93,8 +94,9 @@ impl XIDDocument {
         mark_options: XIDGenesisMarkOptions,
     ) -> Self {
         let inception_key = Self::inception_key_for_options(key_options);
-        let provenance = Self::genesis_mark_with_options(mark_options)
-            .map(|(generator, mark)| Provenance::new_with_generator(generator, mark));
+        let provenance = Self::genesis_mark_with_options(mark_options).map(
+            |(generator, mark)| Provenance::new_with_generator(generator, mark),
+        );
 
         let mut xid_doc = Self {
             xid: XID::new(inception_key.public_keys().signing_public_key()),
@@ -197,13 +199,9 @@ impl XIDDocument {
         self.resolution_methods.take(method.as_ref())
     }
 
-    pub fn keys(&self) -> &HashSet<Key> {
-        &self.keys
-    }
+    pub fn keys(&self) -> &HashSet<Key> { &self.keys }
 
-    pub fn keys_mut(&mut self) -> &mut HashSet<Key> {
-        &mut self.keys
-    }
+    pub fn keys_mut(&mut self) -> &mut HashSet<Key> { &mut self.keys }
 
     pub fn add_key(&mut self, key: Key) -> Result<()> {
         if self.find_key_by_public_keys(key.public_keys()).is_some() {
@@ -249,7 +247,7 @@ impl XIDDocument {
     /// ```
     /// use bc_components::{PrivateKeyBase, PublicKeysProvider};
     /// use bc_envelope::prelude::*;
-    /// use bc_xid::{XIDGenesisMarkOptions, XIDInceptionKeyOptions, XIDDocument};
+    /// use bc_xid::{XIDDocument, XIDGenesisMarkOptions, XIDInceptionKeyOptions};
     ///
     /// let prvkey_base = PrivateKeyBase::new();
     /// let doc = XIDDocument::new(
@@ -399,9 +397,7 @@ impl XIDDocument {
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
     #[allow(clippy::mutable_key_type)]
-    pub fn delegates(&self) -> &HashSet<Delegate> {
-        &self.delegates
-    }
+    pub fn delegates(&self) -> &HashSet<Delegate> { &self.delegates }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -471,9 +467,7 @@ impl XIDDocument {
         self.services.iter().find(|s| s.uri() == uri.as_ref())
     }
 
-    pub fn services(&self) -> &HashSet<Service> {
-        &self.services
-    }
+    pub fn services(&self) -> &HashSet<Service> { &self.services }
 
     pub fn add_service(&mut self, service: Service) -> Result<()> {
         if self.find_service_by_uri(service.uri()).is_some() {
@@ -604,6 +598,148 @@ impl XIDDocument {
         self.provenance = Some(Provenance::new_with_generator(generator, mark));
     }
 
+    /// Advance the provenance mark using the embedded generator.
+    ///
+    /// This method uses the generator embedded in the document's provenance
+    /// to generate the next provenance mark. If the generator is encrypted,
+    /// it will be decrypted using the provided password. After
+    /// advancement, the generator remains in the document in decrypted
+    /// state.
+    ///
+    /// # Parameters
+    ///
+    /// - `password`: Optional password to decrypt the generator if encrypted.
+    ///   Pass as `Vec<u8>` or `None`.
+    /// - `date`: Optional date for the new mark. If `None`, the current date is
+    ///   used.
+    /// - `info`: Optional CBOR-encodable info to attach to the new mark.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The document does not have a provenance mark
+    ///   (`Error::NoProvenanceMark`)
+    /// - The document does not have a generator (`Error::NoGenerator`)
+    /// - The generator is encrypted and the password is wrong
+    ///   (`Error::InvalidPassword`)
+    pub fn next_provenance_mark_with_embedded_generator(
+        &mut self,
+        password: Option<Vec<u8>>,
+        date: Option<Date>,
+        info: Option<CBOR>,
+    ) -> Result<()> {
+        // Ensure we have a provenance to advance
+        let provenance =
+            self.provenance.as_mut().ok_or(Error::NoProvenanceMark)?;
+
+        // Get the current mark
+        let current_mark = provenance.mark().clone();
+
+        // Get mutable access to the generator, decrypting if necessary
+        let password_ref = password.as_deref();
+        let generator = provenance
+            .generator_mut(password_ref)?
+            .ok_or(Error::NoGenerator)?;
+
+        // Validate chain ID matches
+        if generator.chain_id() != current_mark.chain_id() {
+            return Err(Error::ChainIdMismatch {
+                expected: current_mark.chain_id().to_vec(),
+                actual: generator.chain_id().to_vec(),
+            });
+        }
+
+        // Validate sequence number is correct (next_seq should be current seq +
+        // 1)
+        let expected_seq = current_mark.seq() + 1;
+        if generator.next_seq() != expected_seq {
+            return Err(Error::SequenceMismatch {
+                expected: expected_seq,
+                actual: generator.next_seq(),
+            });
+        }
+
+        // Generate the next mark
+        let date = date.unwrap_or_else(Date::now);
+        let next_mark = generator.next(date, info);
+
+        // Update the provenance mark
+        provenance.set_mark(next_mark);
+
+        Ok(())
+    }
+
+    /// Advance the provenance mark using a provided generator.
+    ///
+    /// This method uses an external generator to generate the next provenance
+    /// mark. The generator is not embedded in the document after
+    /// advancement; the caller maintains ownership of the generator.
+    ///
+    /// # Parameters
+    ///
+    /// - `generator`: Mutable reference to the external
+    ///   `ProvenanceMarkGenerator`.
+    /// - `date`: Optional date for the new mark. If `None`, the current date is
+    ///   used.
+    /// - `info`: Optional CBOR-encodable info to attach to the new mark.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The document does not have a provenance mark
+    ///   (`Error::NoProvenanceMark`)
+    /// - The document already has an embedded generator
+    ///   (`Error::GeneratorConflict`)
+    /// - The provided generator's chain ID doesn't match the current mark's
+    ///   chain ID
+    /// - The provided generator's next_seq doesn't match the expected sequence
+    ///   number
+    pub fn next_provenance_mark_with_provided_generator(
+        &mut self,
+        generator: &mut ProvenanceMarkGenerator,
+        date: Option<Date>,
+        info: Option<CBOR>,
+    ) -> Result<()> {
+        // Ensure we have a provenance to advance
+        let provenance =
+            self.provenance.as_mut().ok_or(Error::NoProvenanceMark)?;
+
+        // Check that the document doesn't already have a generator
+        if provenance.has_generator() || provenance.has_encrypted_generator() {
+            return Err(Error::GeneratorConflict);
+        }
+
+        // Get the current mark
+        let current_mark = provenance.mark().clone();
+
+        // Validate chain ID matches
+        if generator.chain_id() != current_mark.chain_id() {
+            return Err(Error::ChainIdMismatch {
+                expected: current_mark.chain_id().to_vec(),
+                actual: generator.chain_id().to_vec(),
+            });
+        }
+
+        // Validate sequence number is correct (next_seq should be current seq +
+        // 1)
+        let expected_seq = current_mark.seq() + 1;
+        if generator.next_seq() != expected_seq {
+            return Err(Error::SequenceMismatch {
+                expected: expected_seq,
+                actual: generator.next_seq(),
+            });
+        }
+
+        // Generate the next mark
+        let date = date.unwrap_or_else(Date::now);
+        let next_mark = generator.next(date, info);
+
+        // Update the provenance mark
+        provenance.set_mark(next_mark);
+
+        Ok(())
+    }
+
     /// Convert XIDDocument to an Envelope.
     pub fn to_envelope(
         &self,
@@ -678,13 +814,15 @@ impl XIDDocument {
     ///
     /// # Parameters
     ///
-    /// - `envelope`: The envelope to extract the document from. Can be signed or unsigned.
-    /// - `password`: Optional password to decrypt encrypted private keys. If private keys
-    ///   are encrypted and no password is provided, the keys will be stored without their
-    ///   private key material.
-    /// - `verify_signature`: Signature verification mode. Use `XIDVerifySignature::None`
-    ///   to skip verification, or `XIDVerifySignature::Inception` to verify that the
-    ///   envelope is signed with the inception key.
+    /// - `envelope`: The envelope to extract the document from. Can be signed
+    ///   or unsigned.
+    /// - `password`: Optional password to decrypt encrypted private keys. If
+    ///   private keys are encrypted and no password is provided, the keys will
+    ///   be stored without their private key material.
+    /// - `verify_signature`: Signature verification mode. Use
+    ///   `XIDVerifySignature::None` to skip verification, or
+    ///   `XIDVerifySignature::Inception` to verify that the envelope is signed
+    ///   with the inception key.
     ///
     /// # Returns
     ///
@@ -692,11 +830,12 @@ impl XIDDocument {
     ///
     /// # Errors
     ///
-    /// - `Error::EnvelopeNotSigned`: When `verify_signature` is `Inception` but the envelope
-    ///   is not signed.
-    /// - `Error::MissingInceptionKey`: When `verify_signature` is `Inception` but the
-    ///   inception key is not found in the document.
-    /// - `Error::SignatureVerificationFailed`: When the signature verification fails.
+    /// - `Error::EnvelopeNotSigned`: When `verify_signature` is `Inception` but
+    ///   the envelope is not signed.
+    /// - `Error::MissingInceptionKey`: When `verify_signature` is `Inception`
+    ///   but the inception key is not found in the document.
+    /// - `Error::SignatureVerificationFailed`: When the signature verification
+    ///   fails.
     /// - `Error::InvalidXid`: When the inception key does not match the XID.
     /// - Other errors from envelope parsing or key extraction.
     pub fn from_envelope(
@@ -706,7 +845,8 @@ impl XIDDocument {
     ) -> Result<Self> {
         match verify_signature {
             XIDVerifySignature::None => {
-                // Extract from the envelope directly (unsigned or ignoring signature)
+                // Extract from the envelope directly (unsigned or ignoring
+                // signature)
                 let envelope_to_parse = if envelope.subject().is_wrapped() {
                     envelope.subject().try_unwrap()?
                 } else {
@@ -722,7 +862,8 @@ impl XIDDocument {
 
                 // Unwrap the envelope and construct a provisional XIDDocument
                 let unwrapped = envelope.try_unwrap()?;
-                let xid_document = Self::from_envelope_inner(&unwrapped, password)?;
+                let xid_document =
+                    Self::from_envelope_inner(&unwrapped, password)?;
 
                 // Extract the inception key from the provisional XIDDocument
                 let inception_key = xid_document
@@ -730,13 +871,15 @@ impl XIDDocument {
                     .ok_or(Error::MissingInceptionKey)?;
 
                 // Verify the signature on the envelope using the inception key
-                envelope.verify(inception_key)
+                envelope
+                    .verify(inception_key)
                     .map_err(|_| Error::SignatureVerificationFailed)?;
 
                 // Extract the XID from the provisional XIDDocument
                 let xid = xid_document.xid();
 
-                // Verify that the inception key is the one that generated the XID
+                // Verify that the inception key is the one that generated the
+                // XID
                 if xid.validate(inception_key) {
                     Ok(xid_document)
                 } else {
@@ -746,7 +889,8 @@ impl XIDDocument {
         }
     }
 
-    /// Internal helper method to extract an `XIDDocument` from an unwrapped envelope.
+    /// Internal helper method to extract an `XIDDocument` from an unwrapped
+    /// envelope.
     fn from_envelope_inner(
         envelope: &Envelope,
         password: Option<&[u8]>,
@@ -778,7 +922,8 @@ impl XIDDocument {
                     xid_document.add_service(service)?;
                 }
                 PROVENANCE_RAW => {
-                    let provenance = Provenance::try_from_envelope(&object, password)?;
+                    let provenance =
+                        Provenance::try_from_envelope(&object, password)?;
                     if xid_document.provenance.is_some() {
                         return Err(Error::MultipleProvenanceMarks);
                     }
@@ -826,33 +971,23 @@ impl Default for XIDDocument {
 }
 
 impl XIDProvider for XIDDocument {
-    fn xid(&self) -> XID {
-        self.xid
-    }
+    fn xid(&self) -> XID { self.xid }
 }
 
 impl ReferenceProvider for XIDDocument {
-    fn reference(&self) -> Reference {
-        self.xid.reference()
-    }
+    fn reference(&self) -> Reference { self.xid.reference() }
 }
 
 impl AsRef<XIDDocument> for XIDDocument {
-    fn as_ref(&self) -> &XIDDocument {
-        self
-    }
+    fn as_ref(&self) -> &XIDDocument { self }
 }
 
 impl From<XIDDocument> for XID {
-    fn from(doc: XIDDocument) -> Self {
-        doc.xid
-    }
+    fn from(doc: XIDDocument) -> Self { doc.xid }
 }
 
 impl From<XID> for XIDDocument {
-    fn from(xid: XID) -> Self {
-        XIDDocument::from_xid(xid)
-    }
+    fn from(xid: XID) -> Self { XIDDocument::from_xid(xid) }
 }
 
 impl From<PublicKeys> for XIDDocument {
@@ -910,15 +1045,11 @@ impl TryFrom<Envelope> for XIDDocument {
 }
 
 impl CBORTagged for XIDDocument {
-    fn cbor_tags() -> Vec<Tag> {
-        tags_for_values(&[TAG_XID])
-    }
+    fn cbor_tags() -> Vec<Tag> { tags_for_values(&[TAG_XID]) }
 }
 
 impl From<XIDDocument> for CBOR {
-    fn from(value: XIDDocument) -> Self {
-        value.tagged_cbor()
-    }
+    fn from(value: XIDDocument) -> Self { value.tagged_cbor() }
 }
 
 impl CBORTaggedEncodable for XIDDocument {

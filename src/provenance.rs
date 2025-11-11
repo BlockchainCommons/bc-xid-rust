@@ -82,7 +82,70 @@ impl Provenance {
         self.generator.as_ref().map(|(_, salt)| salt)
     }
 
-    /// Extract the generator data as an Envelope, optionally decrypting it.
+    /// Get a mutable reference to the generator, decrypting if necessary.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(&mut ProvenanceMarkGenerator))` if generator is available
+    /// - `Ok(None)` if no generator is present
+    /// - `Err(Error::InvalidPassword)` if encrypted and wrong password
+    ///   provided
+    pub fn generator_mut(
+        &mut self,
+        password: Option<&[u8]>,
+    ) -> Result<Option<&mut ProvenanceMarkGenerator>> {
+        match &mut self.generator {
+            None => Ok(None),
+            Some((GeneratorData::Decrypted(generator), _)) => Ok(Some(generator)),
+            Some((encrypted @ GeneratorData::Encrypted(_), _salt)) => {
+                if let Some(pwd) = password {
+                    // Extract the encrypted envelope
+                    let encrypted_envelope = match encrypted {
+                        GeneratorData::Encrypted(env) => env.clone(),
+                        _ => unreachable!(),
+                    };
+
+                    // Try to decrypt
+                    match encrypted_envelope.unlock_subject(pwd) {
+                        Ok(decrypted) => {
+                            let unwrapped = decrypted.try_unwrap()?;
+                            let generator =
+                                ProvenanceMarkGenerator::try_from(unwrapped)?;
+
+                            // Replace encrypted with decrypted
+                            *encrypted = GeneratorData::Decrypted(generator);
+
+                            // Now get the mutable reference
+                            match encrypted {
+                                GeneratorData::Decrypted(g) => Ok(Some(g)),
+                                _ => unreachable!(),
+                            }
+                        }
+                        Err(_) => Err(Error::InvalidPassword),
+                    }
+                } else {
+                    // Cannot decrypt without password
+                    Err(Error::InvalidPassword)
+                }
+            }
+        }
+    }
+
+    /// Update the provenance mark.
+    pub fn set_mark(&mut self, mark: ProvenanceMark) { self.mark = mark; }
+
+    /// Extract the optional generator and salt for mutation or storage.
+    pub fn take_generator(&mut self) -> Option<(GeneratorData, Salt)> {
+        self.generator.take()
+    }
+
+    /// Set or replace the generator.
+    pub fn set_generator(&mut self, generator: ProvenanceMarkGenerator) {
+        let salt = Salt::new_with_len(32).unwrap();
+        self.generator = Some((GeneratorData::Decrypted(generator), salt));
+    }
+
+    /// Extract the generator envelope, optionally decrypting it.
     ///
     /// # Returns
     ///

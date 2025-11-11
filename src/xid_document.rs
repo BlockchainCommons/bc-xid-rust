@@ -29,8 +29,7 @@ pub struct XIDDocument {
     keys: HashSet<Key>,
     delegates: HashSet<Delegate>,
     services: HashSet<Service>,
-    provenance_mark: Option<ProvenanceMark>,
-    provenance_mark_generator: Option<ProvenanceMarkGenerator>,
+    provenance: Option<Provenance>,
 }
 
 #[derive(Default)]
@@ -94,11 +93,8 @@ impl XIDDocument {
         mark_options: XIDGenesisMarkOptions,
     ) -> Self {
         let inception_key = Self::inception_key_for_options(key_options);
-        let (provenance_mark_generator, provenance_mark) =
-            match Self::genesis_mark_with_options(mark_options) {
-                Some((generator, mark)) => (Some(generator), Some(mark)),
-                None => (None, None),
-            };
+        let provenance = Self::genesis_mark_with_options(mark_options)
+            .map(|(generator, mark)| Provenance::new_with_generator(generator, mark));
 
         let mut xid_doc = Self {
             xid: XID::new(inception_key.public_keys().signing_public_key()),
@@ -106,8 +102,7 @@ impl XIDDocument {
             keys: HashSet::new(),
             delegates: HashSet::new(),
             services: HashSet::new(),
-            provenance_mark,
-            provenance_mark_generator,
+            provenance,
         };
 
         xid_doc.add_key(inception_key).unwrap();
@@ -179,8 +174,7 @@ impl XIDDocument {
             keys: HashSet::new(),
             delegates: HashSet::new(),
             services: HashSet::new(),
-            provenance_mark: None,
-            provenance_mark_generator: None,
+            provenance: None,
         }
     }
 
@@ -347,7 +341,7 @@ impl XIDDocument {
         if let Some(key) = self.inception_key() {
             Some(key.public_keys().signing_public_key())
         } else if let Some(key) = self.keys.iter().next() {
-            return Some(key.public_keys().signing_public_key());
+            Some(key.public_keys().signing_public_key())
         } else {
             None
         }
@@ -358,7 +352,7 @@ impl XIDDocument {
         if let Some(key) = self.inception_key() {
             Some(key.public_keys().enapsulation_public_key())
         } else if let Some(key) = self.keys.iter().next() {
-            return Some(key.public_keys().enapsulation_public_key());
+            Some(key.public_keys().enapsulation_public_key())
         } else {
             None
         }
@@ -399,7 +393,7 @@ impl XIDDocument {
         self.resolution_methods.is_empty()
             && self.keys.is_empty()
             && self.delegates.is_empty()
-            && self.provenance_mark.is_none()
+            && self.provenance.is_none()
     }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
@@ -591,11 +585,23 @@ impl XIDDocument {
     }
 
     pub fn provenance(&self) -> Option<&ProvenanceMark> {
-        self.provenance_mark.as_ref()
+        self.provenance.as_ref().map(|p| p.mark())
+    }
+
+    pub fn provenance_generator(&self) -> Option<&ProvenanceMarkGenerator> {
+        self.provenance.as_ref().and_then(|p| p.generator())
     }
 
     pub fn set_provenance(&mut self, provenance: Option<ProvenanceMark>) {
-        self.provenance_mark = provenance;
+        self.provenance = provenance.map(Provenance::new);
+    }
+
+    pub fn set_provenance_with_generator(
+        &mut self,
+        generator: ProvenanceMarkGenerator,
+        mark: ProvenanceMark,
+    ) {
+        self.provenance = Some(Provenance::new_with_generator(generator, mark));
     }
 
     /// Convert XIDDocument to an Envelope.
@@ -643,17 +649,10 @@ impl XIDDocument {
             });
 
         // Add the provenance mark with optional generator.
-        if let Some(mark) = &self.provenance_mark {
-            let provenance = if let Some(generator) =
-                &self.provenance_mark_generator
-            {
-                Provenance::new_with_generator(generator.clone(), mark.clone())
-            } else {
-                Provenance::new(mark.clone())
-            };
+        if let Some(provenance) = &self.provenance {
             envelope = envelope.add_assertion(
                 PROVENANCE,
-                provenance.into_envelope_opt(generator_options),
+                provenance.clone().into_envelope_opt(generator_options),
             );
         }
 
@@ -779,11 +778,11 @@ impl XIDDocument {
                     xid_document.add_service(service)?;
                 }
                 PROVENANCE_RAW => {
-                    let provenance = ProvenanceMark::try_from(object)?;
-                    if xid_document.provenance().is_some() {
+                    let provenance = Provenance::try_from_envelope(&object, password)?;
+                    if xid_document.provenance.is_some() {
                         return Err(Error::MultipleProvenanceMarks);
                     }
-                    xid_document.set_provenance(Some(provenance));
+                    xid_document.provenance = Some(provenance);
                 }
                 _ => {
                     return Err(Error::UnexpectedPredicate {

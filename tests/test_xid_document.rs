@@ -287,8 +287,12 @@ fn signed_xid_document() {
     "#}).trim();
     assert_actual_expected!(signed_envelope.format(), expected_format);
 
-    let self_certified_xid_document =
-        XIDDocument::from_envelope(&signed_envelope, None, XIDVerifySignature::Inception).unwrap();
+    let self_certified_xid_document = XIDDocument::from_envelope(
+        &signed_envelope,
+        None,
+        XIDVerifySignature::Inception,
+    )
+    .unwrap();
     assert_eq!(xid_document, self_certified_xid_document);
 }
 
@@ -326,8 +330,12 @@ fn with_provenance() {
     "#}).trim();
     assert_actual_expected!(signed_envelope.format(), expected_format);
 
-    let self_certified_xid_document =
-        XIDDocument::from_envelope(&signed_envelope, None, XIDVerifySignature::Inception).unwrap();
+    let self_certified_xid_document = XIDDocument::from_envelope(
+        &signed_envelope,
+        None,
+        XIDVerifySignature::Inception,
+    )
+    .unwrap();
     // The provenance mark should match, but the generator won't be present
     // after deserialization
     assert_eq!(xid_document.xid(), self_certified_xid_document.xid());
@@ -699,8 +707,12 @@ fn xid_document_with_encrypted_private_keys() {
     // Try to extract without password - should succeed but keys won't have
     // private key material.
     //
-    let xid_doc_no_password =
-        XIDDocument::from_envelope(&envelope_encrypted, None, XIDVerifySignature::None).unwrap();
+    let xid_doc_no_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     let inception_key = xid_doc_no_password.inception_key().unwrap();
     assert!(inception_key.private_keys().is_none());
 
@@ -709,13 +721,12 @@ fn xid_document_with_encrypted_private_keys() {
     // private key material.
     //
     let wrong_password = b"wrong_password";
-    let xid_doc_wrong_password =
-        XIDDocument::from_envelope(
-            &envelope_encrypted,
-            Some(wrong_password),
-            XIDVerifySignature::None,
-        )
-        .unwrap();
+    let xid_doc_wrong_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(wrong_password),
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     let inception_key = xid_doc_wrong_password.inception_key().unwrap();
     assert!(inception_key.private_keys().is_none());
 
@@ -723,13 +734,12 @@ fn xid_document_with_encrypted_private_keys() {
     // Extract with correct password - should succeed and keys should have
     // private key material.
     //
-    let xid_doc_with_password =
-        XIDDocument::from_envelope(
-            &envelope_encrypted,
-            Some(password),
-            XIDVerifySignature::None,
-        )
-        .unwrap();
+    let xid_doc_with_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(password),
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     let inception_key = xid_doc_with_password.inception_key().unwrap();
     assert_eq!(inception_key.private_keys(), Some(&private_keys));
     assert_eq!(xid_doc_with_password, xid_document);
@@ -777,7 +787,10 @@ fn xid_document_with_encrypted_multiple_keys() {
     // Extract with password - both keys should have their private key
     // material.
     //
-    let xid_doc_decrypted = XIDDocument::from_envelope(&envelope_encrypted, Some(password), XIDVerifySignature::None,
+    let xid_doc_decrypted = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
 
@@ -821,7 +834,12 @@ fn xid_document_private_key_modes() {
     "#}.trim());
 
     // Can extract, but private keys will be None
-    let doc_omit = XIDDocument::from_envelope(&envelope_omit, None, XIDVerifySignature::None).unwrap();
+    let doc_omit = XIDDocument::from_envelope(
+        &envelope_omit,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert!(doc_omit.inception_key().unwrap().private_keys().is_none());
 
     //
@@ -850,8 +868,12 @@ fn xid_document_private_key_modes() {
     "#}.trim());
 
     // Can extract with private keys
-    let doc_include =
-        XIDDocument::from_envelope(&envelope_include, None, XIDVerifySignature::None).unwrap();
+    let doc_include = XIDDocument::from_envelope(
+        &envelope_include,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert!(
         doc_include
             .inception_key()
@@ -883,8 +905,12 @@ fn xid_document_private_key_modes() {
     "#}.trim());
 
     // Can extract, but private keys will be None
-    let doc_elide =
-        XIDDocument::from_envelope(&envelope_elide, None, XIDVerifySignature::None).unwrap();
+    let doc_elide = XIDDocument::from_envelope(
+        &envelope_elide,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert!(doc_elide.inception_key().unwrap().private_keys().is_none());
 
     // Elided envelope is equivalent to included envelope (same digest)
@@ -923,12 +949,19 @@ fn xid_document_private_key_modes() {
     "#}.trim());
 
     // Without password, private keys will be None
-    let doc_no_pwd =
-        XIDDocument::from_envelope(&envelope_encrypt, None, XIDVerifySignature::None).unwrap();
+    let doc_no_pwd = XIDDocument::from_envelope(
+        &envelope_encrypt,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert!(doc_no_pwd.inception_key().unwrap().private_keys().is_none());
 
     // With correct password, can extract with private keys
-    let doc_with_pwd = XIDDocument::from_envelope(&envelope_encrypt, Some(password), XIDVerifySignature::None,
+    let doc_with_pwd = XIDDocument::from_envelope(
+        &envelope_encrypt,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert!(
@@ -1049,7 +1082,10 @@ fn xid_document_encrypted_with_different_methods() {
     // All methods should be decryptable with the same password.
     //
     for envelope in &[envelope_argon2id, envelope_pbkdf2, envelope_scrypt] {
-        let doc = XIDDocument::from_envelope(envelope, Some(password), XIDVerifySignature::None,
+        let doc = XIDDocument::from_envelope(
+            envelope,
+            Some(password),
+            XIDVerifySignature::None,
         )
         .unwrap();
         assert_eq!(doc, xid_document);
@@ -1087,7 +1123,10 @@ fn xid_document_reencrypt_with_different_password() {
     //
     // Load with first password.
     //
-    let doc_decrypted = XIDDocument::from_envelope(&envelope1, Some(password1), XIDVerifySignature::None,
+    let doc_decrypted = XIDDocument::from_envelope(
+        &envelope1,
+        Some(password1),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert_eq!(doc_decrypted, xid_document);
@@ -1117,7 +1156,10 @@ fn xid_document_reencrypt_with_different_password() {
     //
     // First password should not work on second envelope.
     //
-    let doc_wrong_pwd = XIDDocument::from_envelope(&envelope2, Some(password1), XIDVerifySignature::None,
+    let doc_wrong_pwd = XIDDocument::from_envelope(
+        &envelope2,
+        Some(password1),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert!(
@@ -1131,7 +1173,10 @@ fn xid_document_reencrypt_with_different_password() {
     //
     // Second password should work.
     //
-    let doc_reencrypted = XIDDocument::from_envelope(&envelope2, Some(password2), XIDVerifySignature::None,
+    let doc_reencrypted = XIDDocument::from_envelope(
+        &envelope2,
+        Some(password2),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert_eq!(doc_reencrypted, xid_document);
@@ -1195,7 +1240,10 @@ fn xid_document_change_encryption_method() {
     //
     // Load and decrypt.
     //
-    let doc_decrypted = XIDDocument::from_envelope(&envelope_argon2id, Some(password), XIDVerifySignature::None,
+    let doc_decrypted = XIDDocument::from_envelope(
+        &envelope_argon2id,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
 
@@ -1225,7 +1273,10 @@ fn xid_document_change_encryption_method() {
     //
     // Both should decrypt with the same password.
     //
-    let doc_from_scrypt = XIDDocument::from_envelope(&envelope_scrypt, Some(password), XIDVerifySignature::None,
+    let doc_from_scrypt = XIDDocument::from_envelope(
+        &envelope_scrypt,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert_eq!(doc_from_scrypt, xid_document);
@@ -1280,8 +1331,12 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
     //
     // Load plaintext document.
     //
-    let doc_from_plaintext =
-        XIDDocument::from_envelope(&envelope_plaintext, None, XIDVerifySignature::None).unwrap();
+    let doc_from_plaintext = XIDDocument::from_envelope(
+        &envelope_plaintext,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert_eq!(doc_from_plaintext, xid_document);
 
     //
@@ -1317,7 +1372,10 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
     //
     // Decrypt it.
     //
-    let doc_decrypted = XIDDocument::from_envelope(&envelope_encrypted, Some(password), XIDVerifySignature::None,
+    let doc_decrypted = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert_eq!(doc_decrypted, xid_document);
@@ -1345,8 +1403,12 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
     //
     // Should match original plaintext.
     //
-    let doc_final =
-        XIDDocument::from_envelope(&envelope_plaintext2, None, XIDVerifySignature::None).unwrap();
+    let doc_final = XIDDocument::from_envelope(
+        &envelope_plaintext2,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert_eq!(doc_final, xid_document);
 
     //
@@ -1388,8 +1450,12 @@ fn xid_document_switch_between_storage_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
-    let doc1 =
-        XIDDocument::from_envelope(&envelope_plaintext, None, XIDVerifySignature::None).unwrap();
+    let doc1 = XIDDocument::from_envelope(
+        &envelope_plaintext,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert_eq!(doc1, xid_document);
 
     //
@@ -1406,7 +1472,10 @@ fn xid_document_switch_between_storage_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
-    let doc2 = XIDDocument::from_envelope(&envelope_encrypted, Some(password), XIDVerifySignature::None,
+    let doc2 = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
     assert_eq!(doc2, xid_document);
@@ -1422,7 +1491,12 @@ fn xid_document_switch_between_storage_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
-    let doc3 = XIDDocument::from_envelope(&envelope_omit, None, XIDVerifySignature::None).unwrap();
+    let doc3 = XIDDocument::from_envelope(
+        &envelope_omit,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     // Different because private keys are omitted
     assert_ne!(doc3, xid_document);
     assert!(doc3.inception_key().unwrap().private_keys().is_none());
@@ -1439,8 +1513,12 @@ fn xid_document_switch_between_storage_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
-    let doc4 =
-        XIDDocument::from_envelope(&envelope_plaintext2, None, XIDVerifySignature::None).unwrap();
+    let doc4 = XIDDocument::from_envelope(
+        &envelope_plaintext2,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert_eq!(doc4, xid_document);
 
     //
@@ -1454,7 +1532,12 @@ fn xid_document_switch_between_storage_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
-    let doc5 = XIDDocument::from_envelope(&envelope_elide, None, XIDVerifySignature::None).unwrap();
+    let doc5 = XIDDocument::from_envelope(
+        &envelope_elide,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     assert_ne!(doc5, xid_document);
     assert!(doc5.inception_key().unwrap().private_keys().is_none());
 
@@ -1494,8 +1577,12 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
     //
     // Load without password - encrypted keys are preserved but not accessible.
     //
-    let mut doc_no_password =
-        XIDDocument::from_envelope(&envelope_encrypted, None, XIDVerifySignature::None).unwrap();
+    let mut doc_no_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
 
     // Private keys are not accessible
     assert!(
@@ -1544,7 +1631,10 @@ fn xid_document_preserves_encrypted_keys_when_modified() {
     //
     // Load with password - should decrypt the keys.
     //
-    let doc_with_password = XIDDocument::from_envelope(&envelope_after_modification, Some(password), XIDVerifySignature::None,
+    let doc_with_password = XIDDocument::from_envelope(
+        &envelope_after_modification,
+        Some(password),
+        XIDVerifySignature::None,
     )
     .unwrap();
 
@@ -1601,8 +1691,12 @@ fn private_key_envelope_for_key_encrypted() {
         )
         .unwrap();
 
-    let doc_encrypted =
-        XIDDocument::from_envelope(&envelope_encrypted, None, XIDVerifySignature::None).unwrap();
+    let doc_encrypted = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
     let pubkeys = doc_encrypted.inception_key().unwrap().public_keys().clone();
 
     // Without password - should get encrypted envelope
@@ -1742,9 +1836,14 @@ fn test_signing_options_inception() {
     assert_eq!(envelope.format(), expected_format);
 
     // Verify the signature can be validated.
-    let xid_document2 =
-        XIDDocument::from_envelope(&envelope, None, XIDVerifySignature::Inception).unwrap();
-    // Note: xid_document2 won't have private keys since we didn't provide a password
+    let xid_document2 = XIDDocument::from_envelope(
+        &envelope,
+        None,
+        XIDVerifySignature::Inception,
+    )
+    .unwrap();
+    // Note: xid_document2 won't have private keys since we didn't provide a
+    // password
     assert_eq!(xid_document.xid(), xid_document2.xid());
 }
 
@@ -1793,7 +1892,8 @@ fn test_signing_options_private_keys() {
     // Envelope subject should be wrapped (signed).
     assert!(envelope.subject().is_wrapped());
 
-    // The envelope should have a signature - just verify it's formatted correctly
+    // The envelope should have a signature - just verify it's formatted
+    // correctly
     assert!(envelope.format().contains("'signed': Signature"));
 }
 
@@ -1820,7 +1920,8 @@ fn test_signing_options_signing_private_key() {
     // Envelope subject should be wrapped (signed).
     assert!(envelope.subject().is_wrapped());
 
-    // The envelope should have a signature - just verify it's formatted correctly
+    // The envelope should have a signature - just verify it's formatted
+    // correctly
     assert!(envelope.format().contains("'signed': Signature"));
 }
 
@@ -1902,4 +2003,105 @@ fn test_backward_compatibility_to_signed_envelope() {
         .sign(&private_key_base);
 
     assert_eq!(envelope.format(), envelope2.format());
+}
+
+#[test]
+fn test_xid_document_with_encrypted_generator() {
+    bc_envelope::register_tags();
+    provenance_mark::register_tags();
+
+    let mut rng = make_fake_random_number_generator();
+    let private_key_base = PrivateKeyBase::new_using(&mut rng);
+
+    // Create XIDDocument with a provenance generator
+    let xid_doc = XIDDocument::new(
+        XIDInceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        XIDGenesisMarkOptions::Passphrase(
+            "test_passphrase".to_string(),
+            Some(ProvenanceMarkResolution::High),
+            Some(Date::from_string("2025-01-01").unwrap()),
+            None,
+        ),
+    );
+
+    // Verify the document has provenance mark and generator
+    assert!(xid_doc.provenance().is_some());
+    assert!(xid_doc.provenance_generator().is_some());
+
+    // Encrypt the generator when serializing
+    let password = b"correct_horse_battery_staple";
+    let envelope_encrypted = xid_doc
+        .to_envelope(
+            XIDPrivateKeyOptions::Include,
+            XIDGeneratorOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+            XIDSigningOptions::None,
+        )
+        .unwrap();
+
+    // Verify the envelope contains an encrypted generator
+    let format = envelope_encrypted.format();
+    assert!(format.contains("provenanceGenerator"));
+    assert!(format.contains("ENCRYPTED"));
+
+    // Deserialize without password - should preserve encrypted generator
+    let xid_doc_no_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        None,
+        XIDVerifySignature::None,
+    )
+    .unwrap();
+
+    // Mark should be present
+    assert_eq!(xid_doc.provenance(), xid_doc_no_password.provenance());
+
+    // Generator should NOT be accessible (it's encrypted)
+    assert!(xid_doc_no_password.provenance_generator().is_none());
+
+    // Re-serialize the document that has encrypted generator
+    let envelope_reencrypted = xid_doc_no_password
+        .to_envelope(
+            XIDPrivateKeyOptions::Omit,
+            XIDGeneratorOptions::Include,
+            XIDSigningOptions::None,
+        )
+        .unwrap();
+
+    // The encrypted generator should be preserved in the re-serialization
+    let reencrypted_format = envelope_reencrypted.format();
+    assert!(reencrypted_format.contains("provenanceGenerator"));
+    assert!(reencrypted_format.contains("ENCRYPTED"));
+
+    // Now deserialize with the correct password
+    let xid_doc_with_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(password),
+        XIDVerifySignature::None,
+    )
+    .unwrap();
+
+    // Both mark and generator should be accessible
+    assert_eq!(xid_doc.provenance(), xid_doc_with_password.provenance());
+    assert!(xid_doc_with_password.provenance_generator().is_some());
+
+    // The decrypted generator should match the original
+    assert_eq!(
+        xid_doc.provenance_generator().unwrap(),
+        xid_doc_with_password.provenance_generator().unwrap()
+    );
+
+    // Deserialize with wrong password - should preserve encrypted form
+    let wrong_password = b"wrong_password";
+    let xid_doc_wrong_password = XIDDocument::from_envelope(
+        &envelope_encrypted,
+        Some(wrong_password),
+        XIDVerifySignature::None,
+    )
+    .unwrap();
+
+    // Mark should be present, but generator should not be accessible
+    assert_eq!(xid_doc.provenance(), xid_doc_wrong_password.provenance());
+    assert!(xid_doc_wrong_password.provenance_generator().is_none());
 }

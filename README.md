@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.15.1"
+bc-xid = "0.16.0"
 ```
 
 ## Specification
@@ -48,6 +48,13 @@ Because this library is still in a community review stage, it should not be used
 See [Blockchain Commons' Development Phases](https://github.com/BlockchainCommons/Community/blob/master/release-path.md).
 
 ### Version History
+
+**0.16.0** — 2025-11-12
+- Align to dependencies.
+- Format.
+- Add provenance mark advancement methods.
+- Rename and consolidate signing and encryption options.
+- Add signature verification support.
 
 **0.15.1** — 2025-11-03
 - Add support for including ProvenanceMarkGenerator in Envelope XIDDocument.

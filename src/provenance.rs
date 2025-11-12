@@ -88,15 +88,16 @@ impl Provenance {
     ///
     /// - `Ok(Some(&mut ProvenanceMarkGenerator))` if generator is available
     /// - `Ok(None)` if no generator is present
-    /// - `Err(Error::InvalidPassword)` if encrypted and wrong password
-    ///   provided
+    /// - `Err(Error::InvalidPassword)` if encrypted and wrong password provided
     pub fn generator_mut(
         &mut self,
         password: Option<&[u8]>,
     ) -> Result<Option<&mut ProvenanceMarkGenerator>> {
         match &mut self.generator {
             None => Ok(None),
-            Some((GeneratorData::Decrypted(generator), _)) => Ok(Some(generator)),
+            Some((GeneratorData::Decrypted(generator), _)) => {
+                Ok(Some(generator))
+            }
             Some((encrypted @ GeneratorData::Encrypted(_), _salt)) => {
                 if let Some(pwd) = password {
                     // Extract the encrypted envelope

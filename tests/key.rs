@@ -9,7 +9,7 @@ use bc_components::{
 use bc_envelope::prelude::*;
 use bc_rand::make_fake_random_number_generator;
 use bc_xid::{
-    Error, HasNickname, HasPermissions, Key, XIDPrivateKeyOptions, Privilege,
+    Error, HasNickname, HasPermissions, Key, Privilege, XIDPrivateKeyOptions,
 };
 use indoc::indoc;
 
@@ -179,10 +179,11 @@ fn test_key_with_encrypted_private_key() {
     // Encrypt the private key with Argon2id.
     //
     let envelope_encrypted =
-        key.clone().into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
-            method: KeyDerivationMethod::Argon2id,
-            password: password.to_vec(),
-        });
+        key.clone()
+            .into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
 
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypted.format(), indoc! {r#"
@@ -241,10 +242,11 @@ fn test_key_encrypted_with_different_methods() {
     // Test encryption with Argon2id (recommended).
     //
     let envelope_argon2id =
-        key.clone().into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
-            method: KeyDerivationMethod::Argon2id,
-            password: password.to_vec(),
-        });
+        key.clone()
+            .into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
     #[rustfmt::skip]
     assert_actual_expected!(envelope_argon2id.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -266,10 +268,11 @@ fn test_key_encrypted_with_different_methods() {
     // Test encryption with PBKDF2.
     //
     let envelope_pbkdf2 =
-        key.clone().into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
-            method: KeyDerivationMethod::PBKDF2,
-            password: password.to_vec(),
-        });
+        key.clone()
+            .into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::PBKDF2,
+                password: password.to_vec(),
+            });
     #[rustfmt::skip]
     assert_actual_expected!(envelope_pbkdf2.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -291,10 +294,11 @@ fn test_key_encrypted_with_different_methods() {
     // Test encryption with Scrypt.
     //
     let envelope_scrypt =
-        key.clone().into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
-            method: KeyDerivationMethod::Scrypt,
-            password: password.to_vec(),
-        });
+        key.clone()
+            .into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Scrypt,
+                password: password.to_vec(),
+            });
     #[rustfmt::skip]
     assert_actual_expected!(envelope_scrypt.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -388,10 +392,11 @@ fn test_key_private_key_storage_modes() {
     //
     let password = b"secure_password";
     let envelope_encrypt =
-        key.clone().into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
-            method: KeyDerivationMethod::Argon2id,
-            password: password.to_vec(),
-        });
+        key.clone()
+            .into_envelope_opt(XIDPrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            });
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypt.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [

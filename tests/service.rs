@@ -4,8 +4,8 @@ use bc_components::{PublicKeysProvider, URI};
 use bc_envelope::{EnvelopeEncodable, PrivateKeyBase};
 use bc_rand::make_fake_random_number_generator;
 use bc_xid::{
-    XIDGenesisMarkOptions, HasPermissions, XIDInceptionKeyOptions, Privilege,
-    Service, XIDDocument,
+    HasPermissions, Privilege, Service, XIDDocument, XIDGenesisMarkOptions,
+    XIDInceptionKeyOptions,
 };
 
 #[test]

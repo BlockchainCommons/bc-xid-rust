@@ -608,7 +608,7 @@ fn test_advance_with_embedded_generator() {
         XIDGenesisMarkOptions::Passphrase(
             passphrase.to_string(),
             Some(ProvenanceMarkResolution::High),
-            Some(date1.clone()),
+            Some(date1),
             Some(CBOR::from("Genesis mark")),
         ),
     );
@@ -616,7 +616,7 @@ fn test_advance_with_embedded_generator() {
     // Verify initial state
     let mark1 = xid_doc.provenance().unwrap();
     assert_eq!(mark1.seq(), 0);
-    assert_eq!(mark1.date(), &date1);
+    assert_eq!(mark1.date(), date1);
 
     // Advance the provenance mark
     let mut xid_doc2 = xid_doc.clone();
@@ -624,7 +624,7 @@ fn test_advance_with_embedded_generator() {
     xid_doc2
         .next_provenance_mark_with_embedded_generator(
             None,
-            Some(date2.clone()),
+            Some(date2),
             Some(CBOR::from("Second mark")),
         )
         .unwrap();
@@ -632,7 +632,7 @@ fn test_advance_with_embedded_generator() {
     // Verify advancement
     let mark2 = xid_doc2.provenance().unwrap();
     assert_eq!(mark2.seq(), 1);
-    assert_eq!(mark2.date(), &date2);
+    assert_eq!(mark2.date(), date2);
     assert_eq!(mark2.chain_id(), mark1.chain_id());
 
     // Verify generator is still available and advanced
@@ -644,14 +644,14 @@ fn test_advance_with_embedded_generator() {
     xid_doc2
         .next_provenance_mark_with_embedded_generator(
             None,
-            Some(date3.clone()),
+            Some(date3),
             Some(CBOR::from("Third mark")),
         )
         .unwrap();
 
     let mark3 = xid_doc2.provenance().unwrap();
     assert_eq!(mark3.seq(), 2);
-    assert_eq!(mark3.date(), &date3);
+    assert_eq!(mark3.date(), date3);
 }
 
 #[test]
@@ -676,7 +676,7 @@ fn test_advance_with_embedded_encrypted_generator() {
         bc_xid::XIDGenesisMarkOptions::Passphrase(
             passphrase.to_string(),
             Some(ProvenanceMarkResolution::High),
-            Some(date1.clone()),
+            Some(date1),
             Some(CBOR::from("Genesis mark")),
         ),
     );
@@ -714,7 +714,7 @@ fn test_advance_with_embedded_encrypted_generator() {
     xid_doc_encrypted
         .next_provenance_mark_with_embedded_generator(
             Some(password.to_vec()),
-            Some(date2.clone()),
+            Some(date2),
             Some(CBOR::from("Second mark")),
         )
         .unwrap();
@@ -722,7 +722,7 @@ fn test_advance_with_embedded_encrypted_generator() {
     // Verify advancement
     let mark2 = xid_doc_encrypted.provenance().unwrap();
     assert_eq!(mark2.seq(), 1);
-    assert_eq!(mark2.date(), &date2);
+    assert_eq!(mark2.date(), date2);
 
     // Generator should now be decrypted
     let generator = xid_doc_encrypted.provenance_generator().unwrap();
@@ -749,7 +749,7 @@ fn test_advance_with_provided_generator() {
 
     // Generate genesis mark
     let date1 = Date::from_string("2025-01-01").unwrap();
-    let mark1 = generator.next(date1.clone(), Some(CBOR::from("Genesis mark")));
+    let mark1 = generator.next(date1, Some(CBOR::from("Genesis mark")));
 
     // Create XID document WITHOUT embedded generator
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
@@ -766,7 +766,7 @@ fn test_advance_with_provided_generator() {
     xid_doc
         .next_provenance_mark_with_provided_generator(
             &mut generator,
-            Some(date2.clone()),
+            Some(date2),
             Some(CBOR::from("Second mark")),
         )
         .unwrap();
@@ -774,7 +774,7 @@ fn test_advance_with_provided_generator() {
     // Verify advancement
     let mark2 = xid_doc.provenance().unwrap();
     assert_eq!(mark2.seq(), 1);
-    assert_eq!(mark2.date(), &date2);
+    assert_eq!(mark2.date(), date2);
     assert_eq!(mark2.chain_id(), mark1.chain_id());
 
     // Generator should still be external (not embedded)
@@ -788,14 +788,14 @@ fn test_advance_with_provided_generator() {
     xid_doc
         .next_provenance_mark_with_provided_generator(
             &mut generator,
-            Some(date3.clone()),
+            Some(date3),
             Some(CBOR::from("Third mark")),
         )
         .unwrap();
 
     let mark3 = xid_doc.provenance().unwrap();
     assert_eq!(mark3.seq(), 2);
-    assert_eq!(mark3.date(), &date3);
+    assert_eq!(mark3.date(), date3);
 }
 
 #[test]

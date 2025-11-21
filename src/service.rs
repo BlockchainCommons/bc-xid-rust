@@ -72,7 +72,7 @@ impl Service {
         key_reference: impl AsRef<Reference>,
     ) -> Result<()> {
         if !self.key_references.contains(key_reference.as_ref()) {
-            self.key_references.insert(key_reference.as_ref().clone());
+            self.key_references.insert(*key_reference.as_ref());
         } else {
             return Err(Error::Duplicate { item: "key reference".to_string() });
         }
@@ -101,7 +101,7 @@ impl Service {
             .contains(delegate_reference.as_ref())
         {
             self.delegate_references
-                .insert(delegate_reference.as_ref().clone());
+                .insert(*delegate_reference.as_ref());
         } else {
             return Err(Error::Duplicate {
                 item: "delegate reference".to_string(),

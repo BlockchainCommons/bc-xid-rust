@@ -8,8 +8,9 @@ use bc_components::{
 use bc_envelope::prelude::*;
 use dcbor::prelude::CBORError;
 use known_values::{
-    DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA, DEREFERENCE_VIA_RAW, KEY, KEY_RAW,
-    PROVENANCE, PROVENANCE_RAW, SERVICE, SERVICE_RAW,
+    ATTACHMENT_RAW, DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA,
+    DEREFERENCE_VIA_RAW, KEY, KEY_RAW, PROVENANCE, PROVENANCE_RAW, SERVICE,
+    SERVICE_RAW,
 };
 use provenance_mark::{
     ProvenanceMark, ProvenanceMarkGenerator, ProvenanceMarkResolution,
@@ -30,6 +31,7 @@ pub struct XIDDocument {
     delegates: HashSet<Delegate>,
     services: HashSet<Service>,
     provenance: Option<Provenance>,
+    attachments: Attachments,
 }
 
 #[derive(Default)]
@@ -105,6 +107,7 @@ impl XIDDocument {
             delegates: HashSet::new(),
             services: HashSet::new(),
             provenance,
+            attachments: Attachments::new(),
         };
 
         xid_doc.add_key(inception_key).unwrap();
@@ -177,6 +180,7 @@ impl XIDDocument {
             delegates: HashSet::new(),
             services: HashSet::new(),
             provenance: None,
+            attachments: Attachments::new(),
         }
     }
 
@@ -843,6 +847,10 @@ impl XIDDocument {
         password: Option<&[u8]>,
         verify_signature: XIDVerifySignature,
     ) -> Result<Self> {
+        // Extract attachments from the outer envelope first, before unwrapping
+        let attachments = Attachments::try_from_envelope(envelope)
+            .map_err(Error::EnvelopeParsing)?;
+
         match verify_signature {
             XIDVerifySignature::None => {
                 // Extract from the envelope directly (unsigned or ignoring
@@ -852,7 +860,10 @@ impl XIDDocument {
                 } else {
                     envelope.clone()
                 };
-                Self::from_envelope_inner(&envelope_to_parse, password)
+                let mut xid_document =
+                    Self::from_envelope_inner(&envelope_to_parse, password)?;
+                xid_document.attachments = attachments;
+                Ok(xid_document)
             }
             XIDVerifySignature::Inception => {
                 // Verify that the envelope is signed (subject must be wrapped)
@@ -862,7 +873,7 @@ impl XIDDocument {
 
                 // Unwrap the envelope and construct a provisional XIDDocument
                 let unwrapped = envelope.try_unwrap()?;
-                let xid_document =
+                let mut xid_document =
                     Self::from_envelope_inner(&unwrapped, password)?;
 
                 // Extract the inception key from the provisional XIDDocument
@@ -880,10 +891,11 @@ impl XIDDocument {
 
                 // Verify that the inception key is the one that generated the
                 // XID
-                if xid.validate(inception_key) {
-                    Ok(xid_document)
-                } else {
+                if !xid.validate(inception_key) {
                     Err(Error::InvalidXid)
+                } else {
+                    xid_document.attachments = attachments;
+                    Ok(xid_document)
                 }
             }
         }
@@ -929,6 +941,11 @@ impl XIDDocument {
                     }
                     xid_document.provenance = Some(provenance);
                 }
+                ATTACHMENT_RAW => {
+                    // Attachment assertions are handled separately by
+                    // Attachments::try_from_envelope() below, so we skip them
+                    // here.
+                }
                 _ => {
                     return Err(Error::UnexpectedPredicate {
                         predicate: predicate.to_string(),
@@ -969,6 +986,8 @@ impl Default for XIDDocument {
         Self::new(XIDInceptionKeyOptions::Default, XIDGenesisMarkOptions::None)
     }
 }
+
+bc_envelope::impl_attachable!(XIDDocument);
 
 impl XIDProvider for XIDDocument {
     fn xid(&self) -> XID { self.xid }
@@ -1017,14 +1036,16 @@ impl From<&PrivateKeyBase> for XIDDocument {
     }
 }
 
-impl EnvelopeEncodable for XIDDocument {
-    fn into_envelope(self) -> Envelope {
-        self.to_envelope(
-            XIDPrivateKeyOptions::default(),
-            XIDGeneratorOptions::default(),
-            XIDSigningOptions::default(),
-        )
-        .unwrap()
+impl From<XIDDocument> for Envelope {
+    fn from(value: XIDDocument) -> Self {
+        let e = value
+            .to_envelope(
+                XIDPrivateKeyOptions::default(),
+                XIDGeneratorOptions::default(),
+                XIDSigningOptions::default(),
+            )
+            .expect("envelope should not fail");
+        value.attachments.add_to_envelope(e)
     }
 }
 

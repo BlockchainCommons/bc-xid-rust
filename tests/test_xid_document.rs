@@ -2105,3 +2105,167 @@ fn test_xid_document_with_encrypted_generator() {
     assert_eq!(xid_doc.provenance(), xid_doc_wrong_password.provenance());
     assert!(xid_doc_wrong_password.provenance_generator().is_none());
 }
+
+#[test]
+fn test_xid_document_attachments() {
+    use bc_envelope::Attachable;
+
+    // Create a XID document
+    let mut rng = make_fake_random_number_generator();
+    let private_key_base = PrivateKeyBase::new_using(&mut rng);
+    let mut xid_document = XIDDocument::new(
+        XIDInceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        XIDGenesisMarkOptions::None,
+    );
+
+    // Initially, the document should have no attachments
+    assert!(!xid_document.has_attachments());
+
+    // Add an attachment with vendor and conformance metadata
+    let payload = "test_data";
+    let vendor = "com.example";
+    let conforms_to = Some("com.example.schema.v1");
+    xid_document.add_attachment(payload, vendor, conforms_to);
+
+    // Document should now have attachments
+    assert!(xid_document.has_attachments());
+
+    // Add another attachment
+    let payload2 = vec![1u8, 2, 3, 4, 5];
+    let vendor2 = "org.test";
+    xid_document.add_attachment(payload2, vendor2, None);
+
+    // Convert to envelope - note: to_envelope() doesn't include attachments,
+    // so we need to manually add them or use the From<XIDDocument> for Envelope
+    // trait
+    let mut envelope = xid_document
+        .to_envelope(
+            XIDPrivateKeyOptions::Include,
+            XIDGeneratorOptions::Omit,
+            XIDSigningOptions::None,
+        )
+        .unwrap();
+
+    // Add attachments to the envelope
+    envelope = xid_document.attachments().add_to_envelope(envelope);
+
+    // Verify the envelope format includes attachments
+    #[rustfmt::skip]
+    let expected_format = (indoc! {r#"
+        XID(71274df1) [
+            'attachment': {
+                "test_data"
+            } [
+                'conformsTo': "com.example.schema.v1"
+                'vendor': "com.example"
+            ]
+            'attachment': {
+                [1, 2, 3, 4, 5]
+            } [
+                'vendor': "org.test"
+            ]
+            'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
+                {
+                    'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        ]
+    "#}).trim();
+    assert_actual_expected!(envelope.format(), expected_format);
+
+    // Convert back from envelope
+    let xid_document2 = XIDDocument::try_from(&envelope).unwrap();
+
+    // Verify attachments are preserved through round-trip
+    assert_eq!(xid_document, xid_document2);
+    assert!(xid_document2.has_attachments());
+
+    // Test clearing attachments
+    let mut xid_document3 = xid_document.clone();
+    xid_document3.clear_attachments();
+    assert!(!xid_document3.has_attachments());
+}
+
+#[test]
+fn test_xid_document_attachments_with_encryption() {
+    use bc_envelope::Attachable;
+
+    // Create a XID document with private keys
+    let mut rng = make_fake_random_number_generator();
+    let private_key_base = PrivateKeyBase::new_using(&mut rng);
+    let mut xid_document = XIDDocument::new(
+        XIDInceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        XIDGenesisMarkOptions::None,
+    );
+
+    // Add attachments
+    xid_document.add_attachment(
+        "metadata_value",
+        "com.test",
+        Some("schema.v1"),
+    );
+    xid_document.add_attachment(42u64, "org.example", None);
+
+    assert!(xid_document.has_attachments());
+
+    // Convert to envelope WITHOUT encryption (since encrypting the whole
+    // document would also encrypt attachments)
+    let password = b"test_password";
+    let mut envelope = xid_document
+        .to_envelope(
+            XIDPrivateKeyOptions::Encrypt {
+                method: KeyDerivationMethod::Argon2id,
+                password: password.to_vec(),
+            },
+            XIDGeneratorOptions::Omit,
+            XIDSigningOptions::None,
+        )
+        .unwrap();
+
+    // Add attachments to the envelope
+    envelope = xid_document.attachments().add_to_envelope(envelope);
+
+    // Verify the envelope format shows encrypted private keys and attachments
+    #[rustfmt::skip]
+    let expected_format = (indoc! {r#"
+        XID(71274df1) [
+            'attachment': {
+                "metadata_value"
+            } [
+                'conformsTo': "schema.v1"
+                'vendor': "com.test"
+            ]
+            'attachment': {
+                42
+            } [
+                'vendor': "org.example"
+            ]
+            'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
+                {
+                    'privateKey': ENCRYPTED [
+                        'hasSecret': EncryptedKey(Argon2id)
+                    ]
+                } [
+                    'salt': Salt
+                ]
+                'allow': 'All'
+            ]
+        ]
+    "#}).trim();
+    assert_actual_expected!(envelope.format(), expected_format);
+
+    // Decrypt and verify attachments are preserved
+    let xid_document2 = XIDDocument::from_envelope(
+        &envelope,
+        Some(password),
+        XIDVerifySignature::None,
+    )
+    .unwrap();
+
+    // Verify both document structure and attachments are preserved
+    assert_eq!(xid_document, xid_document2);
+    assert!(xid_document2.has_attachments());
+}

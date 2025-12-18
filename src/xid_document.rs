@@ -1038,6 +1038,9 @@ impl From<&PrivateKeyBase> for XIDDocument {
 
 impl From<XIDDocument> for Envelope {
     fn from(value: XIDDocument) -> Self {
+        if value.is_empty() {
+            return value.xid.to_envelope();
+        }
         let e = value
             .to_envelope(
                 XIDPrivateKeyOptions::default(),

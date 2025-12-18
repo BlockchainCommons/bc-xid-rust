@@ -811,6 +811,9 @@ impl XIDDocument {
             XIDSigningOptions::SigningPrivateKey(ref key) => envelope.sign(key),
         };
 
+        // Add attachments
+        let envelope = self.attachments.add_to_envelope(envelope);
+
         Ok(envelope)
     }
 
@@ -1081,13 +1084,14 @@ impl CBORTaggedEncodable for XIDDocument {
         if self.is_empty() {
             return self.xid.untagged_cbor();
         }
-        self.to_envelope(
-            XIDPrivateKeyOptions::default(),
-            XIDGeneratorOptions::default(),
-            XIDSigningOptions::None,
-        )
-        .expect("envelope should not fail")
-        .to_cbor()
+        let e = self
+            .to_envelope(
+                XIDPrivateKeyOptions::default(),
+                XIDGeneratorOptions::default(),
+                XIDSigningOptions::None,
+            )
+            .expect("envelope should not fail");
+        self.attachments.add_to_envelope(e).to_cbor()
     }
 }
 

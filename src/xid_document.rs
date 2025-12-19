@@ -796,6 +796,9 @@ impl XIDDocument {
             );
         }
 
+        // Add attachments before signing so they are included in the signature
+        let envelope = self.attachments.add_to_envelope(envelope);
+
         // Apply signing options.
         let envelope = match signing_options {
             XIDSigningOptions::None => envelope,
@@ -810,9 +813,6 @@ impl XIDDocument {
             XIDSigningOptions::PrivateKeys(ref keys) => envelope.sign(keys),
             XIDSigningOptions::SigningPrivateKey(ref key) => envelope.sign(key),
         };
-
-        // Add attachments
-        let envelope = self.attachments.add_to_envelope(envelope);
 
         Ok(envelope)
     }
@@ -850,10 +850,6 @@ impl XIDDocument {
         password: Option<&[u8]>,
         verify_signature: XIDVerifySignature,
     ) -> Result<Self> {
-        // Extract attachments from the outer envelope first, before unwrapping
-        let attachments = Attachments::try_from_envelope(envelope)
-            .map_err(Error::EnvelopeParsing)?;
-
         match verify_signature {
             XIDVerifySignature::None => {
                 // Extract from the envelope directly (unsigned or ignoring
@@ -863,6 +859,12 @@ impl XIDDocument {
                 } else {
                     envelope.clone()
                 };
+
+                // Extract attachments from the envelope we're parsing
+                let attachments =
+                    Attachments::try_from_envelope(&envelope_to_parse)
+                        .map_err(Error::EnvelopeParsing)?;
+
                 let mut xid_document =
                     Self::from_envelope_inner(&envelope_to_parse, password)?;
                 xid_document.attachments = attachments;
@@ -876,6 +878,11 @@ impl XIDDocument {
 
                 // Unwrap the envelope and construct a provisional XIDDocument
                 let unwrapped = envelope.try_unwrap()?;
+
+                // Extract attachments from the unwrapped (inner) envelope
+                let attachments = Attachments::try_from_envelope(&unwrapped)
+                    .map_err(Error::EnvelopeParsing)?;
+
                 let mut xid_document =
                     Self::from_envelope_inner(&unwrapped, password)?;
 
@@ -1044,14 +1051,13 @@ impl From<XIDDocument> for Envelope {
         if value.is_empty() {
             return value.xid.to_envelope();
         }
-        let e = value
+        value
             .to_envelope(
                 XIDPrivateKeyOptions::default(),
                 XIDGeneratorOptions::default(),
                 XIDSigningOptions::default(),
             )
-            .expect("envelope should not fail");
-        value.attachments.add_to_envelope(e)
+            .expect("envelope should not fail")
     }
 }
 
@@ -1084,14 +1090,13 @@ impl CBORTaggedEncodable for XIDDocument {
         if self.is_empty() {
             return self.xid.untagged_cbor();
         }
-        let e = self
-            .to_envelope(
-                XIDPrivateKeyOptions::default(),
-                XIDGeneratorOptions::default(),
-                XIDSigningOptions::None,
-            )
-            .expect("envelope should not fail");
-        self.attachments.add_to_envelope(e).to_cbor()
+        self.to_envelope(
+            XIDPrivateKeyOptions::default(),
+            XIDGeneratorOptions::default(),
+            XIDSigningOptions::None,
+        )
+        .expect("envelope should not fail")
+        .to_cbor()
     }
 }
 

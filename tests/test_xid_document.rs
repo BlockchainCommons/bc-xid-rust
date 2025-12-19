@@ -2135,19 +2135,15 @@ fn test_xid_document_attachments() {
     let vendor2 = "org.test";
     xid_document.add_attachment(payload2, vendor2, None);
 
-    // Convert to envelope - note: to_envelope() doesn't include attachments,
-    // so we need to manually add them or use the From<XIDDocument> for Envelope
-    // trait
-    let mut envelope = xid_document
+    // Convert to envelope - to_envelope() now includes attachments
+    // automatically
+    let envelope = xid_document
         .to_envelope(
             XIDPrivateKeyOptions::Include,
             XIDGeneratorOptions::Omit,
             XIDSigningOptions::None,
         )
         .unwrap();
-
-    // Add attachments to the envelope
-    envelope = xid_document.attachments().add_to_envelope(envelope);
 
     // Verify the envelope format includes attachments
     #[rustfmt::skip]
@@ -2268,4 +2264,100 @@ fn test_xid_document_attachments_with_encryption() {
     // Verify both document structure and attachments are preserved
     assert_eq!(xid_document, xid_document2);
     assert!(xid_document2.has_attachments());
+}
+
+#[test]
+fn test_xid_document_attachments_with_signature() {
+    use bc_envelope::Attachable;
+
+    // Create a XID document with private keys
+    let mut rng = make_fake_random_number_generator();
+    let private_key_base = PrivateKeyBase::new_using(&mut rng);
+    let mut xid_document = XIDDocument::new(
+        XIDInceptionKeyOptions::PrivateKeyBase(private_key_base.clone()),
+        XIDGenesisMarkOptions::None,
+    );
+
+    // Add attachments before signing
+    let payload = "signed_data";
+    let vendor = "com.example.signed";
+    let conforms_to = Some("com.example.signed.schema.v1");
+    xid_document.add_attachment(payload, vendor, conforms_to);
+
+    // Sign the document with inception key - attachments should be inside the
+    // signature
+    let envelope = xid_document
+        .to_envelope(
+            XIDPrivateKeyOptions::Include,
+            XIDGeneratorOptions::Omit,
+            XIDSigningOptions::Inception,
+        )
+        .unwrap();
+
+    // Verify the envelope format shows attachments INSIDE the wrapped (signed)
+    // content Phase one: Print to collect expected output
+    // println!("{}", envelope.format());
+
+    // Phase two: Compare against expected output
+    #[rustfmt::skip]
+    let expected_format = (indoc! {r#"
+        {
+            XID(71274df1) [
+                'attachment': {
+                    "signed_data"
+                } [
+                    'conformsTo': "com.example.signed.schema.v1"
+                    'vendor': "com.example.signed"
+                ]
+                'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
+                    {
+                        'privateKey': PrivateKeys(fb7c8739, SigningPrivateKey(8492209a, SchnorrPrivateKey(d8b5618f)), EncapsulationPrivateKey(b5f1ec8f, X25519PrivateKey(b5f1ec8f)))
+                    } [
+                        'salt': Salt
+                    ]
+                    'allow': 'All'
+                ]
+            ]
+        } [
+            'signed': Signature
+        ]
+    "#}).trim();
+    assert_actual_expected!(envelope.format(), expected_format);
+
+    // Convert back from envelope with signature verification
+    // (verification happens during from_envelope when using
+    // XIDVerifySignature::Inception)
+    let xid_document2 = XIDDocument::from_envelope(
+        &envelope,
+        None,
+        XIDVerifySignature::Inception,
+    )
+    .unwrap();
+
+    // Verify attachments are preserved and inside the signed content
+    assert_eq!(xid_document, xid_document2);
+    assert!(xid_document2.has_attachments());
+
+    // Verify we can add more attachments and re-sign
+    let mut xid_document3 = xid_document2.clone();
+    xid_document3.add_attachment("additional_data", "com.example.more", None);
+
+    let envelope3 = xid_document3
+        .to_envelope(
+            XIDPrivateKeyOptions::Include,
+            XIDGeneratorOptions::Omit,
+            XIDSigningOptions::Inception,
+        )
+        .unwrap();
+
+    // Verify both attachments are present and signed
+    let xid_document4 = XIDDocument::from_envelope(
+        &envelope3,
+        None,
+        XIDVerifySignature::Inception,
+    )
+    .unwrap();
+
+    assert_eq!(xid_document3, xid_document4);
+    assert!(xid_document4.has_attachments());
 }

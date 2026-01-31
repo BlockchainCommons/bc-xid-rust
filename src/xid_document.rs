@@ -9,8 +9,8 @@ use bc_envelope::prelude::*;
 use dcbor::prelude::CBORError;
 use known_values::{
     ATTACHMENT_RAW, DELEGATE, DELEGATE_RAW, DEREFERENCE_VIA,
-    DEREFERENCE_VIA_RAW, KEY, KEY_RAW, PROVENANCE, PROVENANCE_RAW, SERVICE,
-    SERVICE_RAW,
+    DEREFERENCE_VIA_RAW, EDGE_RAW, KEY, KEY_RAW, PROVENANCE, PROVENANCE_RAW,
+    SERVICE, SERVICE_RAW,
 };
 use provenance_mark::{
     ProvenanceMark, ProvenanceMarkGenerator, ProvenanceMarkResolution,
@@ -32,6 +32,7 @@ pub struct XIDDocument {
     services: HashSet<Service>,
     provenance: Option<Provenance>,
     attachments: Attachments,
+    edges: Edges,
 }
 
 #[derive(Default)]
@@ -108,6 +109,7 @@ impl XIDDocument {
             services: HashSet::new(),
             provenance,
             attachments: Attachments::new(),
+            edges: Edges::new(),
         };
 
         xid_doc.add_key(inception_key).unwrap();
@@ -181,6 +183,7 @@ impl XIDDocument {
             services: HashSet::new(),
             provenance: None,
             attachments: Attachments::new(),
+            edges: Edges::new(),
         }
     }
 
@@ -799,6 +802,9 @@ impl XIDDocument {
         // Add attachments before signing so they are included in the signature
         let envelope = self.attachments.add_to_envelope(envelope);
 
+        // Add edges before signing so they are included in the signature
+        let envelope = self.edges.add_to_envelope(envelope);
+
         // Apply signing options.
         let envelope = match signing_options {
             XIDSigningOptions::None => envelope,
@@ -865,9 +871,14 @@ impl XIDDocument {
                     Attachments::try_from_envelope(&envelope_to_parse)
                         .map_err(Error::EnvelopeParsing)?;
 
+                // Extract edges from the envelope we're parsing
+                let edges = Edges::try_from_envelope(&envelope_to_parse)
+                    .map_err(Error::EnvelopeParsing)?;
+
                 let mut xid_document =
                     Self::from_envelope_inner(&envelope_to_parse, password)?;
                 xid_document.attachments = attachments;
+                xid_document.edges = edges;
                 Ok(xid_document)
             }
             XIDVerifySignature::Inception => {
@@ -881,6 +892,10 @@ impl XIDDocument {
 
                 // Extract attachments from the unwrapped (inner) envelope
                 let attachments = Attachments::try_from_envelope(&unwrapped)
+                    .map_err(Error::EnvelopeParsing)?;
+
+                // Extract edges from the unwrapped (inner) envelope
+                let edges = Edges::try_from_envelope(&unwrapped)
                     .map_err(Error::EnvelopeParsing)?;
 
                 let mut xid_document =
@@ -905,6 +920,7 @@ impl XIDDocument {
                     Err(Error::InvalidXid)
                 } else {
                     xid_document.attachments = attachments;
+                    xid_document.edges = edges;
                     Ok(xid_document)
                 }
             }
@@ -953,8 +969,12 @@ impl XIDDocument {
                 }
                 ATTACHMENT_RAW => {
                     // Attachment assertions are handled separately by
-                    // Attachments::try_from_envelope() below, so we skip them
+                    // Attachments::try_from_envelope() above, so we skip them
                     // here.
+                }
+                EDGE_RAW => {
+                    // Edge assertions are handled separately by
+                    // Edges::try_from_envelope() above, so we skip them here.
                 }
                 _ => {
                     return Err(Error::UnexpectedPredicate {
@@ -998,6 +1018,7 @@ impl Default for XIDDocument {
 }
 
 bc_envelope::impl_attachable!(XIDDocument);
+bc_envelope::impl_edgeable!(XIDDocument);
 
 impl XIDProvider for XIDDocument {
     fn xid(&self) -> XID { self.xid }

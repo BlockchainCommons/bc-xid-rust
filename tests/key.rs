@@ -39,6 +39,7 @@ fn test_key() {
     let key2 = Key::try_from(&envelope).unwrap();
     assert_eq!(key, key2);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -83,6 +84,7 @@ fn test_with_private_key() {
     let envelope_omitting_private_key =
         key_including_private_key.clone().into_envelope();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_omitting_private_key.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -108,6 +110,7 @@ fn test_with_private_key() {
         .clone()
         .into_envelope_opt(XIDPrivateKeyOptions::Include);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_including_private_key.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -136,6 +139,7 @@ fn test_with_private_key() {
         .clone()
         .into_envelope_opt(XIDPrivateKeyOptions::Elide);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_eliding_private_key.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -185,6 +189,7 @@ fn test_key_with_encrypted_private_key() {
                 password: password.to_vec(),
             });
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypted.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -247,6 +252,7 @@ fn test_key_encrypted_with_different_methods() {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_argon2id.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -273,6 +279,7 @@ fn test_key_encrypted_with_different_methods() {
                 method: KeyDerivationMethod::PBKDF2,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_pbkdf2.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -299,6 +306,7 @@ fn test_key_encrypted_with_different_methods() {
                 method: KeyDerivationMethod::Scrypt,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_scrypt.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -340,6 +348,7 @@ fn test_key_private_key_storage_modes() {
     // Mode 1: Omit private key (default, most secure for sharing).
     //
     let envelope_omit = key.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_omit.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -355,6 +364,7 @@ fn test_key_private_key_storage_modes() {
     //
     let envelope_include =
         key.clone().into_envelope_opt(XIDPrivateKeyOptions::Include);
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_include.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -375,6 +385,7 @@ fn test_key_private_key_storage_modes() {
     //
     let envelope_elide =
         key.clone().into_envelope_opt(XIDPrivateKeyOptions::Elide);
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_elide.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
@@ -397,6 +408,7 @@ fn test_key_private_key_storage_modes() {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypt.format(), indoc! {r#"
         PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [

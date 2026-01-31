@@ -42,6 +42,7 @@ fn test_1() {
     assert!(service.add_capability("com.example.messaging").is_err());
 
     let envelope = service.to_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = indoc::indoc! {r#"
         URI(https://example.com) [

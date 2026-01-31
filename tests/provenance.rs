@@ -94,6 +94,7 @@ fn test_with_generator() {
         .clone()
         .into_envelope_opt(XIDGeneratorOptions::Include);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_including_generator.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -128,6 +129,7 @@ fn test_with_generator() {
         .clone()
         .into_envelope_opt(XIDGeneratorOptions::Elide);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_eliding_generator.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -187,6 +189,7 @@ fn test_provenance_with_encrypted_generator() {
                 password: password.to_vec(),
             });
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypted.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -261,6 +264,7 @@ fn test_provenance_encrypted_with_different_methods() {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_argon2id.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -288,6 +292,7 @@ fn test_provenance_encrypted_with_different_methods() {
                 method: KeyDerivationMethod::PBKDF2,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_pbkdf2.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -315,6 +320,7 @@ fn test_provenance_encrypted_with_different_methods() {
                 method: KeyDerivationMethod::Scrypt,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_scrypt.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -378,6 +384,7 @@ fn test_provenance_generator_storage_modes() {
     let envelope_include = provenance
         .clone()
         .into_envelope_opt(XIDGeneratorOptions::Include);
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_include.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -404,6 +411,7 @@ fn test_provenance_generator_storage_modes() {
     let envelope_elide = provenance
         .clone()
         .into_envelope_opt(XIDGeneratorOptions::Elide);
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_elide.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -426,6 +434,7 @@ fn test_provenance_generator_storage_modes() {
                 method: KeyDerivationMethod::Argon2id,
                 password: password.to_vec(),
             });
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypt.format(), indoc! {r#"
         ProvenanceMark(adbd6aa8) [
@@ -513,15 +522,13 @@ fn test_generator_envelope_encrypted_no_password() {
         .unwrap();
 
     // Should be encrypted - check that it contains ENCRYPTED marker
-    assert_actual_expected!(
-        encrypted_envelope.format(),
-        indoc! {r#"
+    // expected-text-output-rubric:
+    #[rustfmt::skip]
+    assert_actual_expected!(encrypted_envelope.format(), indoc! {r#"
         ENCRYPTED [
             'hasSecret': EncryptedKey(Argon2id)
         ]
-    "#}
-        .trim()
-    );
+    "#}.trim());
 }
 
 #[test]

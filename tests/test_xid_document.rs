@@ -32,6 +32,7 @@ fn xid_document() {
 
     // Convert the XID document to an Envelope.
     let envelope = xid_document.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -70,6 +71,7 @@ fn xid_document() {
 
     // Print the CBOR diagnostic notation for the XID.
     let xid_cbor_diagnostic = xid.to_cbor().diagnostic();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_eq!(xid_cbor_diagnostic, (indoc! {r#"
         40024(
@@ -83,6 +85,7 @@ fn xid_document() {
     });
 
     let xid_cbor_hex = xid.to_cbor().hex_annotated();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(xid_cbor_hex, (indoc! {r#"
         d9 9c58                                 # tag(40024) xid
@@ -180,6 +183,7 @@ fn minimal_xid_document() {
     let envelope = xid_document.clone().into_envelope();
 
     // The envelope is just the XID as its subject, with no assertions.
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1)
@@ -229,6 +233,7 @@ fn document_with_resolution_methods() {
     // Convert the XID document to an Envelope.
     let envelope = xid_document.clone().into_envelope();
     // println!("{}", envelope.format());
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -260,6 +265,7 @@ fn signed_xid_document() {
     );
 
     let envelope = xid_document.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -273,6 +279,7 @@ fn signed_xid_document() {
     let signed_envelope =
         xid_document.to_signed_envelope(&private_inception_key);
     // println!("{}", signed_envelope.format());
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {
@@ -315,6 +322,7 @@ fn with_provenance() {
     );
     let signed_envelope =
         xid_document.to_signed_envelope(&private_inception_key);
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {
@@ -370,6 +378,7 @@ fn with_private_key() {
     let signed_envelope_omitting_private_key =
         xid_document_including_private_key
             .to_signed_envelope(&private_inception_key);
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {
@@ -417,6 +426,7 @@ fn with_private_key() {
             &private_inception_key,
             XIDPrivateKeyOptions::Include,
         );
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {
@@ -461,6 +471,7 @@ fn with_private_key() {
             &private_inception_key,
             XIDPrivateKeyOptions::Elide,
         );
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {
@@ -515,6 +526,7 @@ fn change_key() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1)
@@ -535,6 +547,7 @@ fn change_key() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -600,6 +613,7 @@ fn with_service() {
     alice_xid_document.add_service(service).unwrap();
 
     let envelope = alice_xid_document.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         XID(71274df1) [
@@ -687,6 +701,7 @@ fn xid_document_with_encrypted_private_keys() {
         .unwrap();
 
     // The private key should be encrypted in the envelope.
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypted.format(), indoc! {r#"
         XID(71274df1) [
@@ -824,6 +839,7 @@ fn xid_document_private_key_modes() {
         )
         .unwrap();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_omit.format(), indoc! {r#"
         XID(71274df1) [
@@ -853,6 +869,7 @@ fn xid_document_private_key_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_include.format(), indoc! {r#"
         XID(71274df1) [
@@ -894,6 +911,7 @@ fn xid_document_private_key_modes() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_elide.format(), indoc! {r#"
         XID(71274df1) [
@@ -932,6 +950,7 @@ fn xid_document_private_key_modes() {
         )
         .unwrap();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypt.format(), indoc! {r#"
         XID(71274df1) [
@@ -1001,6 +1020,7 @@ fn xid_document_encrypted_with_different_methods() {
         )
         .unwrap();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_argon2id.format(), indoc! {r#"
         XID(71274df1) [
@@ -1031,6 +1051,7 @@ fn xid_document_encrypted_with_different_methods() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_pbkdf2.format(), indoc! {r#"
         XID(71274df1) [
@@ -1062,6 +1083,7 @@ fn xid_document_encrypted_with_different_methods() {
         )
         .unwrap();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_scrypt.format(), indoc! {r#"
         XID(71274df1) [
@@ -1314,6 +1336,7 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_plaintext.format(), indoc! {r#"
         XID(71274df1) [
@@ -1353,6 +1376,7 @@ fn xid_document_encrypt_decrypt_plaintext_roundtrip() {
             XIDSigningOptions::default(),
         )
         .unwrap();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypted.format(), indoc! {r#"
         XID(71274df1) [
@@ -1791,6 +1815,7 @@ fn test_signing_options_none() {
     // Envelope should not have a wrapped subject (not signed).
     assert!(!envelope.subject().is_wrapped());
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -1821,6 +1846,7 @@ fn test_signing_options_inception() {
     // Envelope subject should be wrapped (this is how sign() works).
     assert!(envelope.subject().is_wrapped());
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {
@@ -2146,6 +2172,7 @@ fn test_xid_document_attachments() {
         .unwrap();
 
     // Verify the envelope format includes attachments
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -2225,6 +2252,7 @@ fn test_xid_document_attachments_with_encryption() {
     envelope = xid_document.attachments().add_to_envelope(envelope);
 
     // Verify the envelope format shows encrypted private keys and attachments
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         XID(71274df1) [
@@ -2299,6 +2327,7 @@ fn test_xid_document_attachments_with_signature() {
     // println!("{}", envelope.format());
 
     // Phase two: Compare against expected output
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected_format = (indoc! {r#"
         {

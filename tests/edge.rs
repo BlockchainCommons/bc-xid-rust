@@ -166,6 +166,7 @@ fn test_xid_document_with_single_edge_format() {
 
     let envelope = xid_document.clone().into_envelope();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope.format(), indoc! {r#"
         XID(71274df1) [
@@ -265,6 +266,7 @@ fn test_xid_document_with_edges_signed() {
         )
         .unwrap();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(signed_envelope.format(), indoc! {r#"
         {
@@ -449,6 +451,7 @@ fn test_xid_document_edge_with_additional_assertions() -> Result<(), EnvelopeErr
 
     let envelope = xid_document.clone().into_envelope();
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope.format(), indoc! {r#"
         XID(71274df1) [

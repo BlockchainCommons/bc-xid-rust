@@ -17,6 +17,7 @@ fn permissions() {
     let permissions2 = Permissions::try_from_envelope(&envelope).unwrap();
     assert_eq!(permissions, permissions2);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope.format(), indoc! {r#"
         "Subject" [

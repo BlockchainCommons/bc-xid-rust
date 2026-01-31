@@ -15,6 +15,7 @@ fn test_delegate() {
     let alice_xid_document = XIDDocument::from(&alice_private_key_base);
 
     let envelope = alice_xid_document.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         XID(71274df1) [
@@ -31,6 +32,7 @@ fn test_delegate() {
     let bob_xid_document = XIDDocument::from(bob_public_keys);
 
     let envelope = bob_xid_document.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         XID(7c30cafe) [
@@ -50,6 +52,7 @@ fn test_delegate() {
     let bob_unresolved_delegate_2 = Delegate::try_from(&envelope).unwrap();
     assert_eq!(bob_unresolved_delegate, bob_unresolved_delegate_2);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         {
@@ -70,6 +73,7 @@ fn test_delegate() {
     let envelope = alice_xid_document_with_unresolved_delegate
         .clone()
         .into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         XID(71274df1) [
@@ -95,6 +99,7 @@ fn test_delegate() {
     let bob_delegate_2 = Delegate::try_from(&envelope).unwrap();
     assert_eq!(bob_delegate, bob_delegate_2);
 
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         {
@@ -116,6 +121,7 @@ fn test_delegate() {
         .add_delegate(bob_delegate)
         .unwrap();
     let envelope = alice_xid_document_with_delegate.clone().into_envelope();
+    // expected-text-output-rubric:
     #[rustfmt::skip]
     let expected = (indoc! {r#"
         XID(71274df1) [

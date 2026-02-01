@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.20.1"
+bc-xid = "0.21.0"
 ```
 
 ## Specification
@@ -48,6 +48,15 @@ Because this library is still in a community review stage, it should not be used
 See [Blockchain Commons' Development Phases](https://github.com/BlockchainCommons/Community/blob/master/release-path.md).
 
 ### Version History
+
+**0.21.0** — 2026-01-31
+- Add edges field to XIDDocument (BCR-2026-003).
+- Implement Edgeable trait for XIDDocument via impl_edgeable! macro.
+- Serialize and deserialize edges in envelope round-trips (unsigned, signed, and encrypted paths).
+- Add comprehensive edge test suite covering add, remove, clear, iteration, accessors, and round-trip.
+- Add expected-text-output-rubric comments to existing tests.
+- Update bc-envelope dependency from ^0.41.1 to ^0.42.0.
+- Update provenance-mark dependency from ^0.21.0 to ^0.22.0.
 
 **0.20.1** — 2026-01-20
 - Align to dependencies.

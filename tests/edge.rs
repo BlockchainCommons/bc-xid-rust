@@ -1,6 +1,8 @@
 mod common;
 
-use bc_components::{DigestProvider, PrivateKeyBase, PublicKeysProvider, XIDProvider};
+use bc_components::{
+    DigestProvider, PrivateKeyBase, PublicKeysProvider, XIDProvider,
+};
 use bc_envelope::prelude::*;
 use bc_rand::make_fake_random_number_generator;
 use bc_xid::{
@@ -232,7 +234,12 @@ fn test_xid_document_with_edges_ur_roundtrip() {
     let alice = Envelope::new("Alice");
     let bob = Envelope::new("Bob");
     xid_document.add_edge(make_edge("cred-1", "foaf:Person", &alice, &alice));
-    xid_document.add_edge(make_edge("knows-bob", "schema:colleague", &alice, &bob));
+    xid_document.add_edge(make_edge(
+        "knows-bob",
+        "schema:colleague",
+        &alice,
+        &bob,
+    ));
 
     let ur = xid_document.ur_string();
     let recovered = XIDDocument::from_ur_string(&ur).unwrap();
@@ -392,10 +399,16 @@ fn test_xid_document_edge_accessors() -> Result<(), EnvelopeError> {
     xid_document.add_edge(edge);
 
     let retrieved = xid_document.get_edge(digest).unwrap();
-    assert_actual_expected!(retrieved.edge_is_a()?.format(), r#""schema:colleague""#);
+    assert_actual_expected!(
+        retrieved.edge_is_a()?.format(),
+        r#""schema:colleague""#
+    );
     assert_actual_expected!(retrieved.edge_source()?.format(), r#""Alice""#);
     assert_actual_expected!(retrieved.edge_target()?.format(), r#""Bob""#);
-    assert_actual_expected!(retrieved.edge_subject()?.format(), r#""knows-bob""#);
+    assert_actual_expected!(
+        retrieved.edge_subject()?.format(),
+        r#""knows-bob""#
+    );
 
     Ok(())
 }
@@ -430,7 +443,8 @@ fn test_xid_document_edge_iteration() {
 // -------------------------------------------------------------------
 
 #[test]
-fn test_xid_document_edge_with_additional_assertions() -> Result<(), EnvelopeError> {
+fn test_xid_document_edge_with_additional_assertions()
+-> Result<(), EnvelopeError> {
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let mut xid_document = XIDDocument::new(
@@ -474,7 +488,10 @@ fn test_xid_document_edge_with_additional_assertions() -> Result<(), EnvelopeErr
 
     let edge = recovered.edges().iter().next().unwrap().1;
     assert!(edge.validate_edge().is_ok());
-    assert_actual_expected!(edge.edge_is_a()?.format(), r#""schema:colleague""#);
+    assert_actual_expected!(
+        edge.edge_is_a()?.format(),
+        r#""schema:colleague""#
+    );
 
     Ok(())
 }

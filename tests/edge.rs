@@ -453,13 +453,12 @@ fn test_xid_document_edge_with_additional_assertions()
     );
 
     let alice = Envelope::new("Alice");
-    let bob = Envelope::new("Bob");
-    let edge = Envelope::new("knows-bob")
-        .add_assertion(known_values::IS_A, "schema:colleague")
-        .add_assertion(known_values::SOURCE, alice.clone())
-        .add_assertion(known_values::TARGET, bob.clone())
+    // Per BCR-2026-003, claim detail goes on the target object,
+    // not on the edge subject.
+    let bob = Envelope::new("Bob")
         .add_assertion("department", "Engineering")
         .add_assertion("since", "2024-01-15");
+    let edge = make_edge("knows-bob", "schema:colleague", &alice, &bob);
 
     xid_document.add_edge(edge);
 
@@ -471,10 +470,11 @@ fn test_xid_document_edge_with_additional_assertions()
         XID(71274df1) [
             'edge': "knows-bob" [
                 'isA': "schema:colleague"
-                "department": "Engineering"
-                "since": "2024-01-15"
                 'source': "Alice"
-                'target': "Bob"
+                'target': "Bob" [
+                    "department": "Engineering"
+                    "since": "2024-01-15"
+                ]
             ]
             'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                 'allow': 'All'
@@ -482,7 +482,7 @@ fn test_xid_document_edge_with_additional_assertions()
         ]
     "#}.trim());
 
-    // Round-trip preserves extra assertions
+    // Round-trip preserves target assertions
     let recovered = XIDDocument::try_from(envelope).unwrap();
     assert_eq!(xid_document, recovered);
 

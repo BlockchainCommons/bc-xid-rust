@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.21.0"
+bc-xid = "0.22.0"
 ```
 
 ## Specification
@@ -48,6 +48,11 @@ Because this library is still in a community review stage, it should not be used
 See [Blockchain Commons' Development Phases](https://github.com/BlockchainCommons/Community/blob/master/release-path.md).
 
 ### Version History
+
+**0.22.0** — 2026-02-05
+- Fix edge test to place claim detail on target object per BCR-2026-003.
+- Update `bc-envelope` dependency from ^0.42.0 to ^0.43.0.
+- Update `provenance-mark` dependency from ^0.22.0 to ^0.23.0.
 
 **0.21.0** — 2026-01-31
 - Add edges field to XIDDocument (BCR-2026-003).

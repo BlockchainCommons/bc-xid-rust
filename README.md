@@ -14,7 +14,7 @@ XIDs (eXtensible IDentity, _/zid/_) are unique 32-byte identifier that represent
 
 ```toml
 [dependencies]
-bc-xid = "0.22.0"
+bc-xid = "0.23.0"
 ```
 
 ## Specification
@@ -48,6 +48,13 @@ Because this library is still in a community review stage, it should not be used
 See [Blockchain Commons' Development Phases](https://github.com/BlockchainCommons/Community/blob/master/release-path.md).
 
 ### Version History
+
+**0.23.0** — 2026-05-15
+- Preserve unrecognized top-level XID document assertions during parse, mutation, and serialization.
+- Add `XIDDocument::extra_assertions()` for access to preserved extension assertions.
+- Include services, attachments, edges, and extension assertions in `XIDDocument::is_empty()`.
+- Update `provenance-mark` dependency from ^0.23.0 to ^0.24.0.
+- Add regression coverage for XID document custom assertion preservation.
 
 **0.22.0** — 2026-02-05
 - Fix edge test to place claim detail on target object per BCR-2026-003.

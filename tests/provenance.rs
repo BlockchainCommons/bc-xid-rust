@@ -27,7 +27,10 @@ fn test_provenance() {
     let provenance2 = Provenance::try_from(&envelope).unwrap();
     assert_eq!(provenance, provenance2);
 
-    assert_actual_expected!(envelope.format(), "ProvenanceMark(adbd6aa8)");
+    assert_actual_expected!(
+        envelope.format(),
+        "ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6)"
+    );
 }
 
 #[test]
@@ -71,7 +74,7 @@ fn test_with_generator() {
 
     assert_actual_expected!(
         envelope_omitting_generator.format(),
-        "ProvenanceMark(adbd6aa8)"
+        "ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6)"
     );
 
     //
@@ -97,7 +100,7 @@ fn test_with_generator() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_including_generator.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': Bytes(32) [
                     'isA': "provenance-generator"
@@ -132,7 +135,7 @@ fn test_with_generator() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_eliding_generator.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             ELIDED
         ]
     "#}.trim());
@@ -192,7 +195,7 @@ fn test_provenance_with_encrypted_generator() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypted.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': ENCRYPTED [
                     'hasSecret': EncryptedKey(Argon2id)
@@ -267,7 +270,7 @@ fn test_provenance_encrypted_with_different_methods() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_argon2id.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': ENCRYPTED [
                     'hasSecret': EncryptedKey(Argon2id)
@@ -295,7 +298,7 @@ fn test_provenance_encrypted_with_different_methods() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_pbkdf2.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': ENCRYPTED [
                     'hasSecret': EncryptedKey(PBKDF2(SHA256))
@@ -323,7 +326,7 @@ fn test_provenance_encrypted_with_different_methods() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_scrypt.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': ENCRYPTED [
                     'hasSecret': EncryptedKey(Scrypt)
@@ -387,7 +390,7 @@ fn test_provenance_generator_storage_modes() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_include.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': Bytes(32) [
                     'isA': "provenance-generator"
@@ -414,7 +417,7 @@ fn test_provenance_generator_storage_modes() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_elide.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             ELIDED
         ]
     "#}.trim());
@@ -437,7 +440,7 @@ fn test_provenance_generator_storage_modes() {
     // expected-text-output-rubric:
     #[rustfmt::skip]
     assert_actual_expected!(envelope_encrypt.format(), indoc! {r#"
-        ProvenanceMark(adbd6aa8) [
+        ProvenanceMark(adbd6aa86a1b7e8d674f4c322bade26af30a192176cefb18653d66c3a0c258b6) [
             {
                 'provenanceGenerator': ENCRYPTED [
                     'hasSecret': EncryptedKey(Argon2id)

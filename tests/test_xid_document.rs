@@ -330,7 +330,7 @@ fn with_provenance() {
                 'key': PublicKeys(eb9b1cae, SigningPublicKey(71274df1, SchnorrPublicKey(9022010e)), EncapsulationPublicKey(b4f7059a, X25519PublicKey(b4f7059a))) [
                     'allow': 'All'
                 ]
-                'provenance': ProvenanceMark(8aeb51a1)
+                'provenance': ProvenanceMark(8aeb51a12cad99493e0ff50c878b7819b5b6c4b52f30fae5e345cfbdb067a36e)
             ]
         } [
             'signed': Signature

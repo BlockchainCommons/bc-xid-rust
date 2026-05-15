@@ -224,6 +224,8 @@ fn test_xid_document_with_multiple_edges_format() {
 
 #[test]
 fn test_xid_document_with_edges_ur_roundtrip() {
+    bc_envelope::register_tags();
+
     let mut rng = make_fake_random_number_generator();
     let private_key_base = PrivateKeyBase::new_using(&mut rng);
     let mut xid_document = XIDDocument::new(

@@ -33,6 +33,7 @@ pub struct XIDDocument {
     provenance: Option<Provenance>,
     attachments: Attachments,
     edges: Edges,
+    extra_assertions: Vec<Envelope>,
 }
 
 #[derive(Default)]
@@ -110,6 +111,7 @@ impl XIDDocument {
             provenance,
             attachments: Attachments::new(),
             edges: Edges::new(),
+            extra_assertions: Vec::new(),
         };
 
         xid_doc.add_key(inception_key).unwrap();
@@ -184,6 +186,7 @@ impl XIDDocument {
             provenance: None,
             attachments: Attachments::new(),
             edges: Edges::new(),
+            extra_assertions: Vec::new(),
         }
     }
 
@@ -399,7 +402,13 @@ impl XIDDocument {
             && self.keys.is_empty()
             && self.delegates.is_empty()
             && self.provenance.is_none()
+            && self.services.is_empty()
+            && !self.has_attachments()
+            && !self.has_edges()
+            && self.extra_assertions.is_empty()
     }
+
+    pub fn extra_assertions(&self) -> &[Envelope] { &self.extra_assertions }
 
     // `Delegate` is internally mutable, but the actual key of the `HashSet`,
     // the controller's `XID`, is not.
@@ -799,6 +808,9 @@ impl XIDDocument {
             );
         }
 
+        let envelope =
+            envelope.add_assertion_envelopes(&self.extra_assertions)?;
+
         // Add attachments before signing so they are included in the signature
         let envelope = self.attachments.add_to_envelope(envelope);
 
@@ -936,11 +948,18 @@ impl XIDDocument {
         let xid: XID = envelope.subject().try_leaf()?.try_into()?;
         let mut xid_document = XIDDocument::from(xid);
         for assertion in envelope.assertions() {
-            let predicate =
-                assertion.try_predicate()?.try_known_value()?.value();
-            let object = assertion.try_object()?;
+            let Ok(predicate) = assertion.try_predicate() else {
+                xid_document.extra_assertions.push(assertion);
+                continue;
+            };
+            let Ok(predicate) = predicate.try_known_value() else {
+                xid_document.extra_assertions.push(assertion);
+                continue;
+            };
+            let predicate = predicate.value();
             match predicate {
                 DEREFERENCE_VIA_RAW => {
+                    let object = assertion.try_object()?;
                     let method: URI = object
                         .try_leaf()?
                         .try_into()
@@ -948,18 +967,22 @@ impl XIDDocument {
                     xid_document.add_resolution_method(method);
                 }
                 KEY_RAW => {
+                    let object = assertion.try_object()?;
                     let key = Key::try_from_envelope(&object, password)?;
                     xid_document.add_key(key)?;
                 }
                 DELEGATE_RAW => {
+                    let object = assertion.try_object()?;
                     let delegate = Delegate::try_from(object)?;
                     xid_document.add_delegate(delegate)?;
                 }
                 SERVICE_RAW => {
+                    let object = assertion.try_object()?;
                     let service = Service::try_from(object)?;
                     xid_document.add_service(service)?;
                 }
                 PROVENANCE_RAW => {
+                    let object = assertion.try_object()?;
                     let provenance =
                         Provenance::try_from_envelope(&object, password)?;
                     if xid_document.provenance.is_some() {
@@ -977,9 +1000,7 @@ impl XIDDocument {
                     // Edges::try_from_envelope() above, so we skip them here.
                 }
                 _ => {
-                    return Err(Error::UnexpectedPredicate {
-                        predicate: predicate.to_string(),
-                    });
+                    xid_document.extra_assertions.push(assertion);
                 }
             }
         }
